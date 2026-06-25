@@ -931,8 +931,43 @@
 .operation-detail-actions {
   display: flex;
   justify-content: flex-end;
+  flex-wrap: wrap;
   gap: 8px;
   margin-bottom: 8px;
+}
+
+.live-result {
+  border: 1px solid #fed7aa;
+  border-radius: 8px;
+  background: #fff7ed;
+  padding: 10px;
+  margin-bottom: 8px;
+}
+
+.live-result.executed {
+  border-color: #abefc6;
+  background: #f6fef9;
+}
+
+.live-result.rejected,
+.live-result.blocked {
+  border-color: #fecaca;
+  background: #fff5f5;
+}
+
+.live-result span,
+.live-result strong,
+.live-result p {
+  display: block;
+}
+
+.live-result strong {
+  margin-top: 4px;
+}
+
+.live-result p {
+  margin: 6px 0 0;
+  overflow-wrap: anywhere;
 }
 
 .queue-note {

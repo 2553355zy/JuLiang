@@ -22,6 +22,7 @@ import './App.css'
 import { buildMaterialSignalNotification } from './domain/feishu'
 import type { FundBalanceSummary } from './domain/fundSync'
 import type { NotificationDeliverySummary } from './domain/notificationDelivery'
+import type { LiveOperationResult } from './domain/operationExecution'
 import { evaluateAccount, evaluatePortfolioDiagnostics, formatMoney } from './domain/roiEngine'
 import {
   accounts as fallbackAccounts,
@@ -98,6 +99,7 @@ function App() {
   const [softwareRuns, setSoftwareRuns] = useState<SoftwareCenterRun[]>([])
   const [selectedOperationId, setSelectedOperationId] = useState<string | null>(null)
   const [operationConfirmationText, setOperationConfirmationText] = useState('')
+  const [liveOperationResult, setLiveOperationResult] = useState<LiveOperationResult | null>(null)
 
   const displayAccounts = portfolioProjection.accounts
   const displaySignals = portfolioProjection.materialSignals
@@ -376,6 +378,7 @@ function App() {
       operationConfirmationText,
     )
     setOperationAuditSummary(summary)
+    setLiveOperationResult(null)
     setOperationConfirmationText('')
   }
 
@@ -387,7 +390,20 @@ function App() {
       '用户在操作安全中心标记暂不执行，保留审计记录。',
     )
     setOperationAuditSummary(summary)
+    setLiveOperationResult(null)
     setOperationConfirmationText('')
+  }
+
+  async function handleRequestLiveExecution() {
+    if (!activeOperationPlan) return
+
+    const { result, auditSummary } = await operationExecutionService.requestLiveExecution(
+      activeOperationPlan,
+      activeOperationGate,
+      operationConfirmationText,
+    )
+    setLiveOperationResult(result)
+    setOperationAuditSummary(auditSummary)
   }
 
   async function handleRefreshWorkspace() {
@@ -671,6 +687,7 @@ function App() {
                       onClick={() => {
                         setSelectedOperationId(plan.id)
                         setOperationConfirmationText('')
+                        setLiveOperationResult(null)
                       }}
                     >
                       <CircleDollarSign size={16} />
@@ -717,7 +734,17 @@ function App() {
                       <button className="primary-button compact" type="button" onClick={handleConfirmOperationPlan}>
                         确认预案
                       </button>
+                      <button className="ghost-button compact" type="button" onClick={handleRequestLiveExecution}>
+                        真实执行检查
+                      </button>
                     </div>
+                    {liveOperationResult?.planId === activeOperationPlan.id ? (
+                      <div className={`live-result ${liveOperationResult.status}`}>
+                        <span>执行器结果：{formatLiveOperationStatus(liveOperationResult.status)}</span>
+                        <strong>{liveOperationResult.message}</strong>
+                        <p>幂等键：{liveOperationResult.idempotencyKey}</p>
+                      </div>
+                    ) : null}
                     <small>
                       确认预案只写入审计；真实执行还需要 live 模式、账号白名单、确认词、审计和后续执行器共同通过。
                     </small>
@@ -819,6 +846,17 @@ function formatGateStatus(status?: string): string {
   if (status === 'live_candidate') return 'live 候选'
   if (status === 'preview_only') return '仅预览'
   return '已阻断'
+}
+
+function formatLiveOperationStatus(status: LiveOperationResult['status']): string {
+  const labels: Record<LiveOperationResult['status'], string> = {
+    blocked: '门禁阻断',
+    rejected: '确认拒绝',
+    not_implemented: '执行器未接入',
+    executed: '已执行',
+  }
+
+  return labels[status]
 }
 
 function formatSoftwareRunStatus(status: SoftwareRunStatus): string {
