@@ -56,6 +56,12 @@ import { buildPortfolioProjection } from './services/portfolioProjectionService'
 import { createReportSyncService } from './services/reportSyncService'
 import { createLocalStorageSoftwareCenterRepository } from './services/softwareCenterRepository'
 import {
+  createElectronOperationStateClient,
+  createFallbackOperationStateReader,
+  createOceanEngineOperationStateReader,
+  createProjectionOperationStateReader,
+} from './services/operationStateReader'
+import {
   getBrowserRuntimeConfigStatus,
   loadRuntimeConfigStatus,
   type RuntimeConfigStatus,
@@ -76,7 +82,15 @@ const reportSyncService = createReportSyncService(oceanEngineClient, metricRepos
 const fundRepository = createLocalStorageFundRepository(advertiserSource)
 const fundSyncService = createFundSyncService(oceanEngineClient, fundRepository, advertiserSource)
 const operationAuditRepository = createOperationAuditRepository()
-const operationExecutionService = createOperationExecutionService(operationAuditRepository)
+const operationStateReader = createFallbackOperationStateReader([
+  createOceanEngineOperationStateReader(createElectronOperationStateClient() ?? undefined),
+  createProjectionOperationStateReader(),
+])
+const operationExecutionService = createOperationExecutionService(
+  operationAuditRepository,
+  undefined,
+  operationStateReader,
+)
 const notificationDeliveryRepository = createLocalStorageNotificationDeliveryRepository()
 const notificationDeliveryService = createNotificationDeliveryService(notificationDeliveryRepository)
 const softwareCenterRepository = createLocalStorageSoftwareCenterRepository()

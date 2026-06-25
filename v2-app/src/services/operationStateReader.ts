@@ -21,6 +21,21 @@ export function createElectronOperationStateClient(): OceanEngineOperationStateC
   }
 }
 
+export function createFallbackOperationStateReader(readers: OperationStateReader[]): OperationStateReader {
+  return {
+    async readBeforeState(plan) {
+      for (const reader of readers) {
+        const snapshot = await reader.readBeforeState(plan)
+        if (snapshot.source !== 'not_configured' && snapshot.source !== 'unavailable') {
+          return snapshot
+        }
+      }
+
+      return buildUnavailableSnapshot()
+    },
+  }
+}
+
 export function createProjectionOperationStateReader(): OperationStateReader {
   return {
     async readBeforeState(plan) {
