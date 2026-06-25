@@ -785,6 +785,7 @@ function App() {
           <span>通知投递：{notificationDeliverySummary?.lastLog?.status ?? 'idle'} / sent {notificationDeliverySummary?.sent ?? 0}</span>
           <span>配置来源：{runtimeConfig.source}</span>
           <span>执行模式：{runtimeConfig.executionMode}</span>
+          <span>Write executor: {runtimeConfig.hasOceanEngineWriteExecutor ? 'enabled' : 'disabled'}</span>
           <span>操作白名单：{runtimeConfig.operationAllowlistedAccountIds.length} 个账号</span>
           <span>数据源：{oceanEngineDataSource}</span>
           <span>指标来源：{projectionSourceLabel}</span>

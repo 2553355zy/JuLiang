@@ -58,6 +58,7 @@ ipcMain.handle('runtime:getConfigStatus', () => ({
   hasOceanEngineClient: Boolean(process.env.OCEANENGINE_CLIENT_ID && process.env.OCEANENGINE_CLIENT_SECRET),
   hasOceanEngineAccessToken: Boolean(process.env.OCEANENGINE_ACCESS_TOKEN),
   hasOceanEngineRefreshToken: Boolean(process.env.OCEANENGINE_REFRESH_TOKEN),
+  hasOceanEngineWriteExecutor: process.env.JULIANG_ENABLE_OCEANENGINE_WRITE === 'true',
   hasFeishuWebhook: Boolean(process.env.FEISHU_WEBHOOK_URL),
   operationAllowlistedAccountIds: parseCsv(process.env.JULIANG_OPERATION_ALLOWLIST),
   executionMode: ['readonly', 'preview', 'live'].includes(executionMode) ? executionMode : 'readonly',
