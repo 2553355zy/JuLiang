@@ -1,0 +1,16 @@
+# V1 packaged artifact and local secrets
+巨量监控内测版.exe
+_internal/
+desktop/config.local.json
+
+# Dependencies and build outputs
+node_modules/
+dist/
+v2-app/node_modules/
+v2-app/dist/
+
+# Local runtime files
+*.log
+.env
+.env.*
+!.env.example
