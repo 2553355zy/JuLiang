@@ -23,6 +23,7 @@ import type { ReportSyncSummary } from './domain/reportSync'
 import { buildNotificationQueue } from './services/notificationRouter'
 import { createMockOceanEngineClient } from './services/oceanEngineClient'
 import { buildOperationQueue } from './services/operationPlanner'
+import { attributeMaterials } from './services/materialAttributionService'
 import { createLocalStorageMetricRepository } from './services/metricRepository'
 import { createReportSyncService } from './services/reportSyncService'
 import {
@@ -37,6 +38,15 @@ const notificationDraft = buildMaterialSignalNotification(heroSignal)
 const notificationQueue = buildNotificationQueue(materialSignals)
 const operationQueue = buildOperationQueue(recommendations)
 const portfolioDiagnostics = evaluatePortfolioDiagnostics(accounts, materialSignals)
+const materialAttributionSummary = attributeMaterials(
+  materialSignals.map((signal) => ({
+    id: signal.id,
+    accountId: signal.accountId,
+    materialName: signal.materialName,
+    metrics: signal.metrics,
+    ownerName: signal.owner.name,
+  })),
+)
 const oceanEngineClient = createMockOceanEngineClient()
 const metricRepository = createLocalStorageMetricRepository()
 const reportSyncService = createReportSyncService(oceanEngineClient, metricRepository)
@@ -275,6 +285,7 @@ function App() {
           <span>扩量候选：{portfolioDiagnostics.scaleCandidateCount}</span>
           <span>素材信号：{portfolioDiagnostics.materialSignalCount}</span>
           <span>回传异常：{portfolioDiagnostics.trackingIssueCount}</span>
+          <span>小说归因：{materialAttributionSummary.resolvedCount} 已识别 / {materialAttributionSummary.reviewCount} 待归类</span>
         </section>
       </main>
     </div>
