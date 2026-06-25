@@ -1,7 +1,11 @@
 import type { RuntimeConfigStatus } from '../services/runtimeConfig'
 import type { FeishuNotificationDraft } from '../domain/feishu'
 import type { NotificationDeliveryResult } from '../domain/notificationDelivery'
-import type { OperationStateSnapshot } from '../domain/operationExecution'
+import type {
+  LiveOperationAdapterRequest,
+  LiveOperationResult,
+  OperationStateSnapshot,
+} from '../domain/operationExecution'
 import type { OperationAuditLog, OperationAuditSummary } from '../domain/operationAudit'
 import type {
   OceanEngineAdvertiser,
@@ -33,6 +37,9 @@ declare global {
         saveLogs: (logs: OperationAuditLog[]) => Promise<void>
         listLogs: () => Promise<OperationAuditLog[]>
         getSummary: () => Promise<OperationAuditSummary>
+      }
+      operationExecutor?: {
+        execute: (request: LiveOperationAdapterRequest) => Promise<LiveOperationResult>
       }
       operationState?: {
         getAccountState: (accountId: string) => Promise<OperationStateSnapshot & { accountId?: string; error?: string }>

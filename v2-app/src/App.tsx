@@ -44,6 +44,7 @@ import { createAdvertiserSyncService } from './services/advertiserSyncService'
 import { createElectronOceanEngineClient, createMockOceanEngineClient } from './services/oceanEngineClient'
 import { resolveOwnerRoutes } from './services/ownerRoutingService'
 import { buildOperationQueue } from './services/operationPlanner'
+import { createElectronOperationAdapter } from './services/operationAdapter'
 import { createOperationAuditRepository } from './services/operationAuditRepository'
 import { confirmationKeyword, createOperationExecutionService } from './services/operationExecutionService'
 import { attributeMaterials } from './services/materialAttributionService'
@@ -88,7 +89,7 @@ const operationStateReader = createFallbackOperationStateReader([
 ])
 const operationExecutionService = createOperationExecutionService(
   operationAuditRepository,
-  undefined,
+  createElectronOperationAdapter() ?? undefined,
   operationStateReader,
 )
 const notificationDeliveryRepository = createLocalStorageNotificationDeliveryRepository()

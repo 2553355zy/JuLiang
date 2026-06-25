@@ -3,6 +3,7 @@ const { app, BrowserWindow, ipcMain, shell } = require('electron')
 const feishuNotifier = require('./feishuNotifier.cjs')
 const oceanEngineReadOnly = require('./oceanEngineReadOnly.cjs')
 const operationAuditStore = require('./operationAuditStore.cjs')
+const operationExecutor = require('./operationExecutor.cjs')
 const operationStateReadOnly = require('./operationStateReadOnly.cjs')
 
 const isDev = Boolean(process.env.VITE_DEV_SERVER_URL)
@@ -74,6 +75,7 @@ ipcMain.handle('feishu:sendNotification', (_event, draft) => feishuNotifier.send
 ipcMain.handle('operationAudit:saveLogs', (_event, logs) => operationAuditStore.saveLogs(logs))
 ipcMain.handle('operationAudit:listLogs', () => operationAuditStore.listLogs())
 ipcMain.handle('operationAudit:getSummary', () => operationAuditStore.getSummary())
+ipcMain.handle('operationExecutor:execute', (_event, request) => operationExecutor.execute(request))
 ipcMain.handle('operationState:getAccountState', (_event, accountId) =>
   operationStateReadOnly.getAccountState(accountId),
 )

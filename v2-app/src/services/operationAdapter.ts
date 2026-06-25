@@ -13,6 +13,22 @@ export interface OperationAdapterValidationResult {
   errors: string[]
 }
 
+export function createElectronOperationAdapter(): OperationAdapter | null {
+  if (typeof window === 'undefined' || !window.juliang?.operationExecutor) return null
+
+  const { operationExecutor } = window.juliang
+  return {
+    async execute(request) {
+      const validation = validateLiveOperationAdapterRequest(request)
+      if (!validation.valid) {
+        return buildResult(request, 'rejected', `Operation parameter validation failed: ${validation.errors.join('; ')}`)
+      }
+
+      return operationExecutor.execute(request)
+    },
+  }
+}
+
 export function createNoopOperationAdapter(): OperationAdapter {
   return {
     async execute(request) {
