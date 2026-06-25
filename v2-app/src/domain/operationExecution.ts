@@ -24,6 +24,15 @@ export interface OperationVerificationPlan {
   verifyFields: Array<OperationExpectedChange['field']>
 }
 
+export interface OceanEngineWriteDryRun {
+  method: 'POST'
+  endpoint: string
+  requestBody: Record<string, unknown>
+  source: 'electron-dry-run'
+  blockedReason?: string
+  requiresEndpointConfirmation?: boolean
+}
+
 export type LiveOperationParams =
   | {
       operationType: 'adjust_budget'
@@ -60,6 +69,7 @@ export interface LiveOperationResult {
   status: LiveOperationStatus
   idempotencyKey: string
   verification: OperationVerificationPlan
+  dryRun?: OceanEngineWriteDryRun
   message: string
   checkedAt: string
 }

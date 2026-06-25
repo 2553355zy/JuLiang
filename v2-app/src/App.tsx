@@ -759,6 +759,17 @@ function App() {
                         <span>操作类型：{formatLiveOperationType(liveOperationResult.operationType)}</span>
                         <strong>{liveOperationResult.message}</strong>
                         <p>{formatOperationSnapshot(liveOperationResult)}</p>
+                        {liveOperationResult.dryRun ? (
+                          <div className="dry-run-block">
+                            <span>
+                              Dry-run: {liveOperationResult.dryRun.method} {liveOperationResult.dryRun.endpoint}
+                            </span>
+                            {liveOperationResult.dryRun.blockedReason ? (
+                              <p>{liveOperationResult.dryRun.blockedReason}</p>
+                            ) : null}
+                            <pre>{JSON.stringify(liveOperationResult.dryRun.requestBody, null, 2)}</pre>
+                          </div>
+                        ) : null}
                         <p>验证字段：{liveOperationResult.verification.verifyFields.join(', ') || '无'}</p>
                         <p>幂等键：{liveOperationResult.idempotencyKey}</p>
                       </div>
