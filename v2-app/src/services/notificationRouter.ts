@@ -1,5 +1,7 @@
 import { buildMaterialSignalNotification, type FeishuNotificationDraft } from '../domain/feishu'
+import type { OwnerRoute } from '../domain/ownerRouting'
 import type { MaterialSignal } from '../domain/types'
+import { resolveOwnerRoute } from './ownerRoutingService'
 
 export interface NotificationQueueSummary {
   drafts: FeishuNotificationDraft[]
@@ -7,8 +9,16 @@ export interface NotificationQueueSummary {
   dedupeKeys: string[]
 }
 
-export function buildNotificationQueue(signals: MaterialSignal[]): NotificationQueueSummary {
-  const drafts = signals.map(buildMaterialSignalNotification)
+export function buildNotificationQueue(signals: MaterialSignal[], ownerRoutes: OwnerRoute[] = []): NotificationQueueSummary {
+  const drafts = signals.map((signal) => {
+    const draft = buildMaterialSignalNotification(signal)
+    const routedOwner = resolveOwnerRoute(signal, ownerRoutes)
+
+    return {
+      ...draft,
+      receiver: routedOwner.receiver.feishuUserId ?? routedOwner.receiver.name,
+    }
+  })
 
   return {
     drafts,
@@ -16,4 +26,3 @@ export function buildNotificationQueue(signals: MaterialSignal[]): NotificationQ
     dedupeKeys: drafts.map((draft) => draft.dedupeKey),
   }
 }
-

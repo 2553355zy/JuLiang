@@ -1,5 +1,6 @@
 import { parseMaterialName } from '../domain/materialNameParser'
 import { evaluateAccount } from '../domain/roiEngine'
+import type { OwnerRoute } from '../domain/ownerRouting'
 import type { AccountOwner, DeliveryAccount, MaterialSignal } from '../domain/types'
 
 const owners: AccountOwner[] = [
@@ -84,6 +85,13 @@ export const materialSignals: MaterialSignal[] = [
 ]
 
 export const recommendations = accounts.flatMap((account) => evaluateAccount(account))
+
+export const ownerRoutes: OwnerRoute[] = [
+  { routeType: 'account', key: '178928884001', owner: owners[0] },
+  { routeType: 'account', key: '178928884002', owner: owners[2] },
+  { routeType: 'novel', key: '玄门医妃', owner: owners[1] },
+  { routeType: 'material', key: 'mat-03', owner: owners[2] },
+]
 
 function buildSignal(
   id: string,

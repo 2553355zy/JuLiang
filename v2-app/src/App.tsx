@@ -17,11 +17,12 @@ import { useEffect, useState } from 'react'
 import './App.css'
 import { buildMaterialSignalNotification } from './domain/feishu'
 import { evaluatePortfolioDiagnostics, formatMoney } from './domain/roiEngine'
-import { accounts, materialSignals, recommendations } from './data/mockDashboard'
+import { accounts, materialSignals, ownerRoutes, recommendations } from './data/mockDashboard'
 import type { OceanEngineAuthStatus } from './domain/oceanEngine'
 import type { ReportSyncSummary } from './domain/reportSync'
 import { buildNotificationQueue } from './services/notificationRouter'
 import { createMockOceanEngineClient } from './services/oceanEngineClient'
+import { resolveOwnerRoutes } from './services/ownerRoutingService'
 import { buildOperationQueue } from './services/operationPlanner'
 import { attributeMaterials } from './services/materialAttributionService'
 import { createLocalStorageMetricRepository } from './services/metricRepository'
@@ -35,9 +36,10 @@ import {
 const topAccounts = [...accounts].sort((a, b) => b.metrics.roi - a.metrics.roi)
 const heroSignal = materialSignals[0]
 const notificationDraft = buildMaterialSignalNotification(heroSignal)
-const notificationQueue = buildNotificationQueue(materialSignals)
+const notificationQueue = buildNotificationQueue(materialSignals, ownerRoutes)
 const operationQueue = buildOperationQueue(recommendations)
 const portfolioDiagnostics = evaluatePortfolioDiagnostics(accounts, materialSignals)
+const ownerRoutingResults = resolveOwnerRoutes(materialSignals, ownerRoutes)
 const materialAttributionSummary = attributeMaterials(
   materialSignals.map((signal) => ({
     id: signal.id,
@@ -286,6 +288,7 @@ function App() {
           <span>素材信号：{portfolioDiagnostics.materialSignalCount}</span>
           <span>回传异常：{portfolioDiagnostics.trackingIssueCount}</span>
           <span>小说归因：{materialAttributionSummary.resolvedCount} 已识别 / {materialAttributionSummary.reviewCount} 待归类</span>
+          <span>负责人路由：{ownerRoutingResults.length} 条</span>
         </section>
       </main>
     </div>
