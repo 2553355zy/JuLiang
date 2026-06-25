@@ -1,0 +1,23 @@
+# JuLiang V2 Release Checklist
+
+## Required Before Any Test Build
+
+- Run `pnpm release:check` from `v2-app`.
+- Confirm no real OceanEngine token, refresh token, app secret, Feishu webhook, or account credential is tracked.
+- Confirm V1 package artifacts remain ignored: root exe, `_internal/`, `desktop/`, temporary exe, and `.bak` files.
+- Confirm `JULIANG_EXECUTION_MODE` is `readonly` or `preview` for internal testing.
+- Confirm all money-moving and delivery-changing actions remain preview-only unless explicitly approved.
+
+## Required Before Live Operations
+
+- Token custody decision documented.
+- Operation audit log persistence verified.
+- Confirmation words verified for high-risk actions.
+- Feishu notification dedupe verified.
+- Backout plan documented.
+- V1 package preserved separately for rollback/reference.
+
+## Current Release State
+
+The current branch is a functional skeleton and UI integration build. It is not ready for live OceanEngine operations.
+
