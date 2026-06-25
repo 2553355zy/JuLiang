@@ -743,6 +743,7 @@ function App() {
                         <span>执行器结果：{formatLiveOperationStatus(liveOperationResult.status)}</span>
                         <span>操作类型：{formatLiveOperationType(liveOperationResult.operationType)}</span>
                         <strong>{liveOperationResult.message}</strong>
+                        <p>验证字段：{liveOperationResult.verification.verifyFields.join(', ') || '无'}</p>
                         <p>幂等键：{liveOperationResult.idempotencyKey}</p>
                       </div>
                     ) : null}

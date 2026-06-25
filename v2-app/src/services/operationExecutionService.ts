@@ -1,5 +1,6 @@
 import type { OperationAuditLog, OperationAuditSummary } from '../domain/operationAudit'
 import {
+  buildOperationVerificationPlan,
   buildLiveOperationAdapterRequest,
   buildOperationIdempotencyKey,
   inferLiveOperationType,
@@ -76,6 +77,7 @@ function buildLiveExecutionResult(
   adapter: OperationAdapter,
 ): Promise<LiveOperationResult> {
   const idempotencyKey = buildOperationIdempotencyKey(plan)
+  const verification = buildOperationVerificationPlan(plan)
   const checkedAt = new Date().toISOString()
 
   if (!gate || gate.status !== 'live_candidate') {
@@ -87,6 +89,7 @@ function buildLiveExecutionResult(
       operationType: inferLiveOperationType(plan),
       status: 'blocked',
       idempotencyKey,
+      verification,
       message: gate?.reason ?? '真实操作门禁未生成，禁止执行。',
       checkedAt,
     })
@@ -102,6 +105,7 @@ function buildLiveExecutionResult(
       operationType: inferLiveOperationType(plan),
       status: 'rejected',
       idempotencyKey,
+      verification,
       message: `确认词不匹配，期望输入：${expected}`,
       checkedAt,
     })

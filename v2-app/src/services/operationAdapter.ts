@@ -22,9 +22,14 @@ export function createNoopOperationAdapter(): OperationAdapter {
       }
 
       const paramsSummary = formatParamsSummary(request)
+      const verificationSummary = formatVerificationSummary(request)
       return {
         ...buildResult(request, 'not_implemented', formatNoopMessage(request)),
-        message: `${formatNoopMessage(request)}${paramsSummary ? ` 参数：${paramsSummary}。` : ''}`,
+        message: [
+          formatNoopMessage(request),
+          paramsSummary ? `参数：${paramsSummary}。` : '',
+          verificationSummary ? `验证：${verificationSummary}。` : '',
+        ].join(''),
       }
     },
   }
@@ -44,6 +49,9 @@ export function validateLiveOperationAdapterRequest(
   if (request.target.type !== 'account') errors.push('当前只允许账号级真实操作')
   if (request.operationType === 'unknown') errors.push('无法识别操作类型')
   if (request.reason.trim().length < 4) errors.push('操作原因过短')
+  if (!request.verification.before.capturedAt) errors.push('缺少操作前快照时间')
+  if (!request.verification.verifyFields.length) errors.push('缺少操作后验证字段')
+  if (!request.verification.expectedChanges.length) errors.push('缺少期望变更')
 
   if (request.operationType === 'adjust_budget') {
     if (request.params.operationType !== 'adjust_budget') {
@@ -58,11 +66,17 @@ export function validateLiveOperationAdapterRequest(
       if (request.params.percent > 50) {
         errors.push('单次预算调整比例不能超过 50%')
       }
+      if (!request.verification.verifyFields.includes('budget')) {
+        errors.push('预算操作必须验证 budget 字段')
+      }
     }
   }
 
   if (['pause', 'resume', 'close'].includes(request.operationType) && request.params.operationType !== request.operationType) {
     errors.push('状态操作参数类型不匹配')
+  }
+  if (['pause', 'resume', 'close'].includes(request.operationType) && !request.verification.verifyFields.includes('status')) {
+    errors.push('状态操作必须验证 status 字段')
   }
 
   return {
@@ -89,6 +103,7 @@ function buildResult(
     operationType: request.operationType,
     status,
     idempotencyKey: request.idempotencyKey,
+    verification: request.verification,
     message,
     checkedAt: new Date().toISOString(),
   }
@@ -100,6 +115,12 @@ function formatParamsSummary(request: LiveOperationAdapterRequest): string {
   }
 
   return ''
+}
+
+function formatVerificationSummary(request: LiveOperationAdapterRequest): string {
+  const fields = request.verification.verifyFields.join(', ')
+  const changes = request.verification.expectedChanges.map((change) => change.description).join('；')
+  return [fields ? `字段 ${fields}` : '', changes].filter(Boolean).join('，')
 }
 
 function formatOperationType(operationType: LiveOperationType): string {

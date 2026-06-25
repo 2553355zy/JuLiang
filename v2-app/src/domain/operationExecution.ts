@@ -4,6 +4,26 @@ export type LiveOperationStatus = 'blocked' | 'rejected' | 'not_implemented' | '
 export type LiveOperationType = 'adjust_budget' | 'pause' | 'resume' | 'close' | 'unknown'
 export type BudgetAdjustmentDirection = 'increase' | 'decrease'
 
+export interface OperationStateSnapshot {
+  capturedAt: string
+  budget?: number
+  status?: 'running' | 'paused' | 'closed' | 'unknown'
+  source: 'unavailable' | 'mock' | 'oceanengine'
+}
+
+export interface OperationExpectedChange {
+  field: 'budget' | 'status'
+  from?: number | string
+  to?: number | string
+  description: string
+}
+
+export interface OperationVerificationPlan {
+  before: OperationStateSnapshot
+  expectedChanges: OperationExpectedChange[]
+  verifyFields: Array<OperationExpectedChange['field']>
+}
+
 export type LiveOperationParams =
   | {
       operationType: 'adjust_budget'
@@ -27,6 +47,7 @@ export interface LiveOperationAdapterRequest {
   rawAction: string
   reason: string
   params: LiveOperationParams
+  verification: OperationVerificationPlan
   idempotencyKey: string
 }
 
@@ -38,6 +59,7 @@ export interface LiveOperationResult {
   operationType: LiveOperationType
   status: LiveOperationStatus
   idempotencyKey: string
+  verification: OperationVerificationPlan
   message: string
   checkedAt: string
 }
@@ -62,6 +84,7 @@ export function buildLiveOperationAdapterRequest(plan: OperationPlan): LiveOpera
     rawAction: plan.action,
     reason: plan.reason,
     params: inferLiveOperationParams(plan),
+    verification: buildOperationVerificationPlan(plan),
     idempotencyKey: buildOperationIdempotencyKey(plan),
   }
 }
@@ -89,5 +112,66 @@ export function inferLiveOperationParams(plan: OperationPlan): LiveOperationPara
     operationType,
     direction,
     percent,
+  }
+}
+
+export function buildOperationVerificationPlan(plan: OperationPlan): OperationVerificationPlan {
+  const params = inferLiveOperationParams(plan)
+  const before = buildUnavailableSnapshot()
+
+  if (params.operationType === 'adjust_budget') {
+    return {
+      before,
+      expectedChanges: [
+        {
+          field: 'budget',
+          description: `预算${params.direction === 'increase' ? '上调' : '下调'} ${params.percent}%`,
+        },
+      ],
+      verifyFields: ['budget'],
+    }
+  }
+
+  if (params.operationType === 'pause') {
+    return buildStatusVerificationPlan(before, 'paused', '账号或单元应变为暂停状态')
+  }
+
+  if (params.operationType === 'resume') {
+    return buildStatusVerificationPlan(before, 'running', '账号或单元应恢复运行')
+  }
+
+  if (params.operationType === 'close') {
+    return buildStatusVerificationPlan(before, 'closed', '账号或单元应变为关闭状态')
+  }
+
+  return {
+    before,
+    expectedChanges: [],
+    verifyFields: [],
+  }
+}
+
+function buildUnavailableSnapshot(): OperationStateSnapshot {
+  return {
+    capturedAt: new Date().toISOString(),
+    source: 'unavailable',
+  }
+}
+
+function buildStatusVerificationPlan(
+  before: OperationStateSnapshot,
+  to: NonNullable<OperationStateSnapshot['status']>,
+  description: string,
+): OperationVerificationPlan {
+  return {
+    before,
+    expectedChanges: [
+      {
+        field: 'status',
+        to,
+        description,
+      },
+    ],
+    verifyFields: ['status'],
   }
 }
