@@ -86,6 +86,7 @@ function App() {
   const [operationAuditSummary, setOperationAuditSummary] = useState<OperationAuditSummary | null>(null)
   const [notificationDeliverySummary, setNotificationDeliverySummary] =
     useState<NotificationDeliverySummary | null>(null)
+  const [softwareRunStatus, setSoftwareRunStatus] = useState<SoftwareRunStatus>('idle')
 
   const displayAccounts = portfolioProjection.accounts
   const displaySignals = portfolioProjection.materialSignals
@@ -194,52 +195,16 @@ function App() {
     let mounted = true
 
     async function loadRuntimeState() {
-      const [config, auth, advertiserSync] = await Promise.all([
-        loadRuntimeConfigStatus(),
-        safeRead(oceanEngineClient.getAuthStatus(), {
-          hasAccessToken: false,
-          hasRefreshToken: false,
-          authorizedAdvertiserCount: 0,
-        }),
-        advertiserSyncService.runOnce(),
-      ])
-      const advertiserIds = resolveSyncAdvertiserIds(advertiserSync.advertisers)
-      const [syncSummary, nextFundSummary] = await Promise.all([
-        runReportSync(advertiserIds),
-        fundSyncService.runOnce(advertiserIds),
-      ])
-      const facts = await metricRepository.listFacts()
-      const nextProjection = buildPortfolioProjection(
-        facts,
-        advertiserSync.advertisers,
-        nextFundSummary.balances,
-        fallbackAccounts,
-        fallbackMaterialSignals,
-      )
-      const nextRecommendations = nextProjection.accounts.flatMap((account) => evaluateAccount(account))
-      const nextOperationQueue = buildOperationQueue(nextRecommendations)
-      const auditSummary = await operationExecutionService.previewPlans(nextOperationQueue.plans)
+      setSoftwareRunStatus('running')
+      try {
+        const result = await refreshWorkspaceState()
+        if (!mounted) return
 
-      if (!mounted) return
-
-      const normalizedAuth = {
-        ...auth,
-        authorizedAdvertiserCount: Math.max(auth.authorizedAdvertiserCount, advertiserSync.storedAdvertiserCount),
+        applyWorkspaceRefresh(result)
+        setSoftwareRunStatus('success')
+      } catch {
+        if (mounted) setSoftwareRunStatus('failed')
       }
-
-      setRuntimeConfig(config)
-      setAuthStatus(normalizedAuth)
-      setAdvertiserSummary(advertiserSync)
-      setPortfolioProjection(nextProjection)
-      setFundSummary(nextFundSummary)
-      setApiProbe({
-        advertiserCount: advertiserSync.storedAdvertiserCount,
-        reportRows: syncSummary.lastRun?.rowCount ?? 0,
-        fundRows: nextFundSummary.storedBalanceCount,
-      })
-      setReportSyncSummary(syncSummary)
-      setOperationAuditSummary(auditSummary)
-      setNotificationDeliverySummary(await notificationDeliveryRepository.getSummary())
     }
 
     loadRuntimeState()
@@ -248,6 +213,68 @@ function App() {
       mounted = false
     }
   }, [])
+
+  async function refreshWorkspaceState(): Promise<WorkspaceRefreshResult> {
+    const [config, auth, advertiserSync] = await Promise.all([
+      loadRuntimeConfigStatus(),
+      safeRead(oceanEngineClient.getAuthStatus(), {
+        hasAccessToken: false,
+        hasRefreshToken: false,
+        authorizedAdvertiserCount: 0,
+      }),
+      advertiserSyncService.runOnce(),
+    ])
+    const advertiserIds = resolveSyncAdvertiserIds(advertiserSync.advertisers)
+    const [syncSummary, nextFundSummary] = await Promise.all([
+      runReportSync(advertiserIds),
+      fundSyncService.runOnce(advertiserIds),
+    ])
+    const facts = await metricRepository.listFacts()
+    const nextProjection = buildPortfolioProjection(
+      facts,
+      advertiserSync.advertisers,
+      nextFundSummary.balances,
+      fallbackAccounts,
+      fallbackMaterialSignals,
+    )
+    const nextRecommendations = nextProjection.accounts.flatMap((account) => evaluateAccount(account))
+    const nextOperationQueue = buildOperationQueue(nextRecommendations)
+    const auditSummary = await operationExecutionService.previewPlans(nextOperationQueue.plans)
+    const deliverySummary = await notificationDeliveryRepository.getSummary()
+
+    return {
+      config,
+      auth,
+      advertiserSync,
+      syncSummary,
+      fundSummary: nextFundSummary,
+      projection: nextProjection,
+      auditSummary,
+      deliverySummary,
+    }
+  }
+
+  function applyWorkspaceRefresh(result: WorkspaceRefreshResult): void {
+    setRuntimeConfig(result.config)
+    setAuthStatus({
+      ...result.auth,
+      authorizedAdvertiserCount: Math.max(
+        result.auth.authorizedAdvertiserCount,
+        result.advertiserSync.storedAdvertiserCount,
+      ),
+    })
+    setAdvertiserSummary(result.advertiserSync)
+    setPortfolioProjection(result.projection)
+    setFundSummary(result.fundSummary)
+    setApiProbe({
+      advertiserCount: result.advertiserSync.storedAdvertiserCount,
+      reportRows: result.syncSummary.lastRun?.rowCount ?? 0,
+      fundRows: result.fundSummary.storedBalanceCount,
+    })
+    setReportSyncSummary(result.syncSummary)
+    setOperationAuditSummary(result.auditSummary)
+    setNotificationDeliverySummary(result.deliverySummary)
+  }
 
   async function runReportSync(advertiserIds = resolveSyncAdvertiserIds(advertiserSummary?.advertisers)) {
     return reportSyncService.runOnce({
@@ -324,6 +351,17 @@ function App() {
   async function handleDeliverNotification() {
     const summary = await notificationDeliveryService.deliver(notificationDraft)
     setNotificationDeliverySummary(summary)
+  }
+
+  async function handleRefreshWorkspace() {
+    setSoftwareRunStatus('running')
+    try {
+      const result = await refreshWorkspaceState()
+      applyWorkspaceRefresh(result)
+      setSoftwareRunStatus('success')
+    } catch {
+      setSoftwareRunStatus('failed')
+    }
   }
 
   const authorizedAdvertisers = advertiserSummary?.advertisers ?? []
@@ -405,6 +443,21 @@ function App() {
 
         <section className="panel software-center" id="software">
           <PanelTitle icon={<Settings size={18} />} title="软件中心" subtitle="主体能力先闭环，延伸集成后续单独推进" />
+          <div className="software-toolbar">
+            <div>
+              <strong>全链路刷新：{formatSoftwareRunStatus(softwareRunStatus)}</strong>
+              <span>授权、报表、余额、诊断、操作预览、通知日志统一更新</span>
+            </div>
+            <button
+              className="primary-button"
+              type="button"
+              onClick={handleRefreshWorkspace}
+              disabled={softwareRunStatus === 'running'}
+            >
+              <Activity size={16} />
+              刷新全部
+            </button>
+          </div>
           <div className="software-grid">
             {softwareModules.map((module) => (
               <a className={`software-module ${module.status}`} href={module.href} key={module.id}>
@@ -583,6 +636,18 @@ function todayIsoDate(): string {
 }
 
 type SoftwareModuleStatus = 'ready' | 'setup' | 'later'
+type SoftwareRunStatus = 'idle' | 'running' | 'success' | 'failed'
+
+interface WorkspaceRefreshResult {
+  config: RuntimeConfigStatus
+  auth: OceanEngineAuthStatus
+  advertiserSync: AuthorizedAdvertiserSummary
+  syncSummary: ReportSyncSummary
+  fundSummary: FundBalanceSummary
+  projection: ReturnType<typeof buildPortfolioProjection>
+  auditSummary: OperationAuditSummary
+  deliverySummary: NotificationDeliverySummary
+}
 
 interface SoftwareModule {
   id: string
@@ -599,6 +664,17 @@ function formatModuleStatus(status: SoftwareModuleStatus): string {
     ready: '已接入',
     setup: '待配置',
     later: '后续扩展',
+  }
+
+  return labels[status]
+}
+
+function formatSoftwareRunStatus(status: SoftwareRunStatus): string {
+  const labels: Record<SoftwareRunStatus, string> = {
+    idle: '待运行',
+    running: '运行中',
+    success: '已完成',
+    failed: '失败',
   }
 
   return labels[status]

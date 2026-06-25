@@ -249,6 +249,40 @@
   margin-bottom: 12px;
 }
 
+.software-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border: 1px solid #e3e9f2;
+  border-radius: 8px;
+  background: #fbfcfe;
+  padding: 12px;
+  margin-bottom: 12px;
+}
+
+.software-toolbar strong,
+.software-toolbar span {
+  display: block;
+}
+
+.software-toolbar strong {
+  color: #111827;
+  font-size: 13px;
+}
+
+.software-toolbar span {
+  color: #667085;
+  font-size: 12px;
+  margin-top: 3px;
+}
+
+.primary-button:disabled,
+.ghost-button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
 .software-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -802,6 +836,15 @@
 
   .authorized-toolbar {
     align-items: flex-start;
+  }
+
+  .software-toolbar {
+    display: grid;
+  }
+
+  .software-toolbar button {
+    width: 100%;
+    justify-content: center;
   }
 
   .feishu-actions button {
