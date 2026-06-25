@@ -372,6 +372,105 @@
   font-style: normal;
 }
 
+.preflight-panel {
+  margin-top: 12px;
+  border: 1px solid #e3e9f2;
+  border-radius: 8px;
+  background: #fbfcfe;
+  padding: 12px;
+}
+
+.preflight-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.preflight-head strong,
+.preflight-head span {
+  display: block;
+}
+
+.preflight-head strong {
+  color: #111827;
+  font-size: 13px;
+}
+
+.preflight-head span {
+  color: #667085;
+  font-size: 12px;
+  margin-top: 3px;
+}
+
+.preflight-list {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.preflight-check {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 8px;
+  border: 1px solid #e4e7ec;
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 10px;
+}
+
+.preflight-check > span {
+  align-self: start;
+  border-radius: 999px;
+  padding: 3px 7px;
+  background: #eef2f7;
+  color: #475467;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.preflight-check.pass > span {
+  background: #ecfdf3;
+  color: #067647;
+}
+
+.preflight-check.warn > span {
+  background: #fff7ed;
+  color: #b54708;
+}
+
+.preflight-check.fail > span {
+  background: #fff1f3;
+  color: #c01048;
+}
+
+.preflight-check strong,
+.preflight-check p,
+.preflight-check small {
+  display: block;
+}
+
+.preflight-check strong {
+  color: #111827;
+  font-size: 12px;
+}
+
+.preflight-check p {
+  margin: 4px 0 0;
+  color: #475467;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.preflight-check small {
+  margin-top: 4px;
+  color: #667085;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
 .software-run-list {
   margin-top: 12px;
   border: 1px solid #e3e9f2;
@@ -1054,6 +1153,10 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .preflight-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .signal-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -1079,6 +1182,7 @@
 
   .metric-grid,
   .software-grid,
+  .preflight-list,
   .signal-grid {
     grid-template-columns: 1fr;
   }

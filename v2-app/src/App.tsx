@@ -21,6 +21,7 @@ import { useEffect, useMemo, useState } from 'react'
 import './App.css'
 import { buildMaterialSignalNotification } from './domain/feishu'
 import type { FundBalanceSummary } from './domain/fundSync'
+import type { IntegrationPreflightSummary } from './domain/integrationPreflight'
 import type { NotificationDeliverySummary } from './domain/notificationDelivery'
 import type { LiveOperationResult } from './domain/operationExecution'
 import { evaluateAccount, evaluatePortfolioDiagnostics, formatMoney } from './domain/roiEngine'
@@ -50,6 +51,7 @@ import { confirmationKeyword, createOperationExecutionService } from './services
 import { attributeMaterials } from './services/materialAttributionService'
 import { createLocalStorageFundRepository } from './services/fundRepository'
 import { createFundSyncService } from './services/fundSyncService'
+import { createIntegrationPreflightService } from './services/integrationPreflightService'
 import { createLocalStorageMetricRepository } from './services/metricRepository'
 import { createNotificationDeliveryService } from './services/notificationDeliveryService'
 import { createLocalStorageNotificationDeliveryRepository } from './services/notificationDeliveryRepository'
@@ -95,6 +97,12 @@ const operationExecutionService = createOperationExecutionService(
 const notificationDeliveryRepository = createLocalStorageNotificationDeliveryRepository()
 const notificationDeliveryService = createNotificationDeliveryService(notificationDeliveryRepository)
 const softwareCenterRepository = createLocalStorageSoftwareCenterRepository()
+const integrationPreflightService = createIntegrationPreflightService({
+  getRuntimeConfig: loadRuntimeConfigStatus,
+  oceanEngineClient,
+  operationStateReader,
+  notificationDraft: buildMaterialSignalNotification(fallbackMaterialSignals[0]),
+})
 
 function App() {
   const [runtimeConfig, setRuntimeConfig] = useState<RuntimeConfigStatus>(getBrowserRuntimeConfigStatus)
@@ -112,6 +120,8 @@ function App() {
   const [softwareRunStatus, setSoftwareRunStatus] = useState<SoftwareRunStatus>('idle')
   const [softwareRunSummary, setSoftwareRunSummary] = useState<SoftwareCenterRunSummary | null>(null)
   const [softwareRuns, setSoftwareRuns] = useState<SoftwareCenterRun[]>([])
+  const [preflightStatus, setPreflightStatus] = useState<PreflightRunStatus>('idle')
+  const [preflightSummary, setPreflightSummary] = useState<IntegrationPreflightSummary | null>(null)
   const [selectedOperationId, setSelectedOperationId] = useState<string | null>(null)
   const [operationConfirmationText, setOperationConfirmationText] = useState('')
   const [liveOperationResult, setLiveOperationResult] = useState<LiveOperationResult | null>(null)
@@ -158,6 +168,17 @@ function App() {
   const blendedRoi = totalSpend > 0 ? totalRevenue / totalSpend : 0
   const projectionSourceLabel = portfolioProjection.source === 'metric-facts' ? '本地事实库' : '演示数据'
   const softwareModules: SoftwareModule[] = [
+    {
+      id: 'preflight',
+      title: '真实接入预检',
+      description: '检查 token、授权账号、报表、余额、预算状态、飞书和写入安全开关',
+      status: preflightSummary?.failed ? 'setup' : preflightSummary ? 'ready' : 'setup',
+      evidence: preflightSummary
+        ? `通过 ${preflightSummary.passed} / 警告 ${preflightSummary.warnings} / 失败 ${preflightSummary.failed}`
+        : '等待运行预检',
+      href: '#preflight',
+      icon: <ShieldCheck size={18} />,
+    },
     {
       id: 'config',
       title: '授权与配置',
@@ -425,6 +446,18 @@ function App() {
     await runLoggedWorkspaceRefresh('manual')
   }
 
+  async function handleRunPreflight() {
+    setPreflightStatus('running')
+
+    try {
+      const summary = await integrationPreflightService.run()
+      setPreflightSummary(summary)
+      setPreflightStatus(summary.failed ? 'failed' : 'success')
+    } catch {
+      setPreflightStatus('failed')
+    }
+  }
+
   async function runLoggedWorkspaceRefresh(
     trigger: SoftwareCenterRunTrigger,
     shouldApply: () => boolean = () => true,
@@ -569,6 +602,41 @@ function App() {
                 </div>
               </a>
             ))}
+          </div>
+          <div className="preflight-panel" id="preflight">
+            <div className="preflight-head">
+              <div>
+                <strong>真实接入预检</strong>
+                <span>
+                  {preflightSummary
+                    ? `通过 ${preflightSummary.passed} / 警告 ${preflightSummary.warnings} / 失败 ${preflightSummary.failed}`
+                    : '运行前不会开启真实写入'}
+                </span>
+              </div>
+              <button
+                className="ghost-button compact"
+                type="button"
+                onClick={handleRunPreflight}
+                disabled={preflightStatus === 'running'}
+              >
+                <ShieldCheck size={15} />
+                {preflightStatus === 'running' ? '检查中' : '运行预检'}
+              </button>
+            </div>
+            {preflightSummary ? (
+              <div className="preflight-list">
+                {preflightSummary.checks.map((check) => (
+                  <article className={`preflight-check ${check.status}`} key={check.id}>
+                    <span>{check.status}</span>
+                    <div>
+                      <strong>{check.title}</strong>
+                      <p>{check.evidence}</p>
+                      {check.detail ? <small>{check.detail}</small> : null}
+                    </div>
+                  </article>
+                ))}
+              </div>
+            ) : null}
           </div>
           <div className="software-run-list" aria-label="软件中心最近运行">
             <div className="software-run-list-head">
@@ -855,6 +923,7 @@ function todayIsoDate(): string {
 
 type SoftwareModuleStatus = 'ready' | 'setup' | 'later'
 type SoftwareRunStatus = 'idle' | 'running' | 'success' | 'failed'
+type PreflightRunStatus = 'idle' | 'running' | 'success' | 'failed'
 
 interface WorkspaceRefreshResult {
   config: RuntimeConfigStatus
