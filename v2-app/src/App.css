@@ -290,6 +290,108 @@
   color: #667085;
 }
 
+.authorized-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border: 1px solid #e3e9f2;
+  border-radius: 8px;
+  background: #fbfcfe;
+  padding: 10px 12px;
+  margin-bottom: 10px;
+}
+
+.authorized-toolbar strong,
+.authorized-toolbar span {
+  display: block;
+}
+
+.authorized-toolbar strong {
+  color: #111827;
+  font-size: 13px;
+}
+
+.authorized-toolbar span {
+  color: #667085;
+  font-size: 12px;
+  margin-top: 2px;
+}
+
+.ghost-button.compact {
+  height: 32px;
+  padding: 0 10px;
+  font-size: 12px;
+}
+
+.authorized-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.authorized-item,
+.authorized-empty {
+  border: 1px solid #e3e9f2;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.authorized-item {
+  min-width: 0;
+  min-height: 58px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px;
+}
+
+.authorized-item div {
+  min-width: 0;
+}
+
+.authorized-item strong,
+.authorized-item span {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.authorized-item strong {
+  color: #111827;
+  font-size: 13px;
+}
+
+.authorized-item span {
+  color: #667085;
+  font-size: 12px;
+  margin-top: 3px;
+}
+
+.authorized-item em {
+  flex: 0 0 auto;
+  max-width: 88px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-style: normal;
+  border-radius: 999px;
+  background: #eef4ff;
+  color: #164eb8;
+  padding: 4px 7px;
+  font-size: 11px;
+}
+
+.authorized-empty {
+  color: #667085;
+  font-size: 12px;
+  padding: 11px 12px;
+  margin-bottom: 12px;
+}
+
 .account-table {
   display: grid;
   gap: 2px;
@@ -572,6 +674,14 @@
   .metric-grid,
   .signal-grid {
     grid-template-columns: 1fr;
+  }
+
+  .authorized-list {
+    grid-template-columns: 1fr;
+  }
+
+  .authorized-toolbar {
+    align-items: flex-start;
   }
 
   .table-row {

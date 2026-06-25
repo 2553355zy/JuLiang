@@ -18,10 +18,13 @@ import './App.css'
 import { buildMaterialSignalNotification } from './domain/feishu'
 import { evaluatePortfolioDiagnostics, formatMoney } from './domain/roiEngine'
 import { accounts, materialSignals, ownerRoutes, recommendations } from './data/mockDashboard'
+import type { AuthorizedAdvertiserRecord, AuthorizedAdvertiserSummary } from './domain/advertiserSync'
 import type { OceanEngineAuthStatus } from './domain/oceanEngine'
 import type { OperationAuditSummary } from './domain/operationAudit'
 import type { ReportSyncSummary } from './domain/reportSync'
 import { buildNotificationQueue } from './services/notificationRouter'
+import { createLocalStorageAdvertiserRepository } from './services/advertiserRepository'
+import { createAdvertiserSyncService } from './services/advertiserSyncService'
 import { createElectronOceanEngineClient, createMockOceanEngineClient } from './services/oceanEngineClient'
 import { resolveOwnerRoutes } from './services/ownerRoutingService'
 import { buildOperationQueue } from './services/operationPlanner'
@@ -55,6 +58,13 @@ const materialAttributionSummary = attributeMaterials(
 const electronOceanEngineClient = createElectronOceanEngineClient()
 const oceanEngineClient = electronOceanEngineClient ?? createMockOceanEngineClient()
 const oceanEngineDataSource = electronOceanEngineClient ? 'electron-readonly' : 'mock-browser'
+const advertiserSource = electronOceanEngineClient ? 'oceanengine' : 'mock'
+const advertiserRepository = createLocalStorageAdvertiserRepository(advertiserSource)
+const advertiserSyncService = createAdvertiserSyncService(
+  oceanEngineClient,
+  advertiserRepository,
+  advertiserSource,
+)
 const metricRepository = createLocalStorageMetricRepository()
 const reportSyncService = createReportSyncService(oceanEngineClient, metricRepository)
 const operationAuditRepository = createLocalStorageOperationAuditRepository()
@@ -67,6 +77,7 @@ function App() {
   const [runtimeConfig, setRuntimeConfig] = useState<RuntimeConfigStatus>(getBrowserRuntimeConfigStatus)
   const [authStatus, setAuthStatus] = useState<OceanEngineAuthStatus | null>(null)
   const [apiProbe, setApiProbe] = useState({ advertiserCount: 0, reportRows: 0, fundRows: 0 })
+  const [advertiserSummary, setAdvertiserSummary] = useState<AuthorizedAdvertiserSummary | null>(null)
   const [reportSyncSummary, setReportSyncSummary] = useState<ReportSyncSummary | null>(null)
   const [operationAuditSummary, setOperationAuditSummary] = useState<OperationAuditSummary | null>(null)
 
@@ -74,14 +85,14 @@ function App() {
     let mounted = true
 
     async function loadRuntimeState() {
-      const [config, auth, advertisers, syncSummary, fundRows, auditSummary] = await Promise.all([
+      const [config, auth, advertiserSync, syncSummary, fundRows, auditSummary] = await Promise.all([
         loadRuntimeConfigStatus(),
         safeRead(oceanEngineClient.getAuthStatus(), {
           hasAccessToken: false,
           hasRefreshToken: false,
           authorizedAdvertiserCount: 0,
         }),
-        safeRead(oceanEngineClient.listAuthorizedAdvertisers(), []),
+        advertiserSyncService.runOnce(),
         runReportSync(),
         safeRead(oceanEngineClient.getFundBalances(accounts.map((account) => account.id)), []),
         operationExecutionService.previewPlans(operationQueue.plans),
@@ -91,13 +102,14 @@ function App() {
 
       const normalizedAuth = {
         ...auth,
-        authorizedAdvertiserCount: Math.max(auth.authorizedAdvertiserCount, advertisers.length),
+        authorizedAdvertiserCount: Math.max(auth.authorizedAdvertiserCount, advertiserSync.storedAdvertiserCount),
       }
 
       setRuntimeConfig(config)
       setAuthStatus(normalizedAuth)
+      setAdvertiserSummary(advertiserSync)
       setApiProbe({
-        advertiserCount: advertisers.length,
+        advertiserCount: advertiserSync.storedAdvertiserCount,
         reportRows: syncSummary.lastRun?.rowCount ?? 0,
         fundRows: fundRows.length,
       })
@@ -130,6 +142,25 @@ function App() {
       reportRows: summary.lastRun?.rowCount ?? current.reportRows,
     }))
   }
+
+  async function handleSyncAdvertisers() {
+    const summary = await advertiserSyncService.runOnce()
+    setAdvertiserSummary(summary)
+    setAuthStatus((current) =>
+      current
+        ? {
+            ...current,
+            authorizedAdvertiserCount: Math.max(current.authorizedAdvertiserCount, summary.storedAdvertiserCount),
+          }
+        : current,
+    )
+    setApiProbe((current) => ({
+      ...current,
+      advertiserCount: summary.storedAdvertiserCount,
+    }))
+  }
+
+  const authorizedAdvertisers = advertiserSummary?.advertisers ?? []
 
   return (
     <div className="shell">
@@ -202,6 +233,17 @@ function App() {
         <section className="split-layout">
           <div className="panel account-panel" id="accounts">
             <PanelTitle icon={<LineChart size={18} />} title="账号 ROI 排行" subtitle="用于快速判断扩量、控量与回传排查" />
+            <div className="authorized-toolbar">
+              <div>
+                <strong>授权账号库 {advertiserSummary?.storedAdvertiserCount ?? 0} 个</strong>
+                <span>最近同步：{advertiserSummary?.lastRun?.status ?? 'idle'}</span>
+              </div>
+              <button className="ghost-button compact" type="button" onClick={handleSyncAdvertisers}>
+                <Activity size={15} />
+                同步授权
+              </button>
+            </div>
+            <AuthorizedAdvertiserList advertisers={authorizedAdvertisers} />
             <div className="account-table">
               <div className="table-row table-head">
                 <span>账号</span>
@@ -301,6 +343,7 @@ function App() {
           <span>配置来源：{runtimeConfig.source}</span>
           <span>数据源：{oceanEngineDataSource}</span>
           <span>授权账号：{authStatus?.authorizedAdvertiserCount ?? apiProbe.advertiserCount}</span>
+          <span>账号库同步：{advertiserSummary?.lastRun?.status ?? 'idle'}</span>
           <span>报表探针：{apiProbe.reportRows} 行 / 余额 {apiProbe.fundRows} 行</span>
           <span>本地事实：{reportSyncSummary?.storedFactCount ?? 0} 条</span>
           <span>最近同步：{reportSyncSummary?.lastRun?.status ?? 'idle'}</span>
@@ -322,6 +365,34 @@ async function safeRead<T>(promise: Promise<T>, fallback: T): Promise<T> {
   } catch {
     return fallback
   }
+}
+
+interface AuthorizedAdvertiserListProps {
+  advertisers: AuthorizedAdvertiserRecord[]
+}
+
+function AuthorizedAdvertiserList({ advertisers }: AuthorizedAdvertiserListProps) {
+  if (!advertisers.length) {
+    return (
+      <div className="authorized-empty">
+        桌面端配置 OceanEngine token 后，这里会显示已授权账号。
+      </div>
+    )
+  }
+
+  return (
+    <div className="authorized-list" aria-label="已授权巨量账号">
+      {advertisers.slice(0, 4).map((advertiser) => (
+        <article className="authorized-item" key={advertiser.advertiserId}>
+          <div>
+            <strong>{advertiser.name}</strong>
+            <span>{advertiser.advertiserId}</span>
+          </div>
+          <em>{advertiser.ownerName || advertiser.accountRole}</em>
+        </article>
+      ))}
+    </div>
+  )
 }
 
 interface MetricCardProps {
