@@ -19,9 +19,12 @@ import { buildMaterialSignalNotification } from './domain/feishu'
 import { formatMoney } from './domain/roiEngine'
 import { accounts, materialSignals, recommendations } from './data/mockDashboard'
 import type { OceanEngineAuthStatus } from './domain/oceanEngine'
+import type { ReportSyncSummary } from './domain/reportSync'
 import { buildNotificationQueue } from './services/notificationRouter'
 import { createMockOceanEngineClient } from './services/oceanEngineClient'
 import { buildOperationQueue } from './services/operationPlanner'
+import { createLocalStorageMetricRepository } from './services/metricRepository'
+import { createReportSyncService } from './services/reportSyncService'
 import {
   getBrowserRuntimeConfigStatus,
   loadRuntimeConfigStatus,
@@ -34,6 +37,8 @@ const notificationDraft = buildMaterialSignalNotification(heroSignal)
 const notificationQueue = buildNotificationQueue(materialSignals)
 const operationQueue = buildOperationQueue(recommendations)
 const oceanEngineClient = createMockOceanEngineClient()
+const metricRepository = createLocalStorageMetricRepository()
+const reportSyncService = createReportSyncService(oceanEngineClient, metricRepository)
 const totalSpend = accounts.reduce((sum, account) => sum + account.metrics.spend, 0)
 const totalRevenue = accounts.reduce((sum, account) => sum + account.metrics.revenue, 0)
 const totalProfit = totalRevenue - totalSpend
@@ -43,22 +48,17 @@ function App() {
   const [runtimeConfig, setRuntimeConfig] = useState<RuntimeConfigStatus>(getBrowserRuntimeConfigStatus)
   const [authStatus, setAuthStatus] = useState<OceanEngineAuthStatus | null>(null)
   const [apiProbe, setApiProbe] = useState({ advertiserCount: 0, reportRows: 0, fundRows: 0 })
+  const [reportSyncSummary, setReportSyncSummary] = useState<ReportSyncSummary | null>(null)
 
   useEffect(() => {
     let mounted = true
 
     async function loadRuntimeState() {
-      const [config, auth, advertisers, reportRows, fundRows] = await Promise.all([
+      const [config, auth, advertisers, syncSummary, fundRows] = await Promise.all([
         loadRuntimeConfigStatus(),
         oceanEngineClient.getAuthStatus(),
         oceanEngineClient.listAuthorizedAdvertisers(),
-        oceanEngineClient.queryReport({
-          advertiserIds: accounts.map((account) => account.id),
-          startDate: '2026-06-25',
-          endDate: '2026-06-25',
-          dimensions: ['advertiser', 'material'],
-          metrics: ['cost', 'show', 'click', 'convert', 'income', 'roi'],
-        }),
+        runReportSync(),
         oceanEngineClient.getFundBalances(accounts.map((account) => account.id)),
       ])
 
@@ -68,9 +68,10 @@ function App() {
       setAuthStatus(auth)
       setApiProbe({
         advertiserCount: advertisers.length,
-        reportRows: reportRows.length,
+        reportRows: syncSummary.lastRun?.rowCount ?? 0,
         fundRows: fundRows.length,
       })
+      setReportSyncSummary(syncSummary)
     }
 
     loadRuntimeState()
@@ -79,6 +80,25 @@ function App() {
       mounted = false
     }
   }, [])
+
+  async function runReportSync() {
+    return reportSyncService.runOnce({
+      advertiserIds: accounts.map((account) => account.id),
+      startDate: '2026-06-25',
+      endDate: '2026-06-25',
+      dimensions: ['advertiser', 'material'],
+      metrics: ['cost', 'show', 'click', 'convert', 'income', 'roi'],
+    })
+  }
+
+  async function handleSyncReports() {
+    const summary = await runReportSync()
+    setReportSyncSummary(summary)
+    setApiProbe((current) => ({
+      ...current,
+      reportRows: summary.lastRun?.rowCount ?? current.reportRows,
+    }))
+  }
 
   return (
     <div className="shell">
@@ -130,7 +150,7 @@ function App() {
               <Search size={16} />
               <input placeholder="搜索账号、素材、小说名" />
             </label>
-            <button className="ghost-button" type="button">
+            <button className="ghost-button" type="button" onClick={handleSyncReports}>
               <Activity size={16} />
               同步报表
             </button>
@@ -250,6 +270,8 @@ function App() {
           <span>配置来源：{runtimeConfig.source}</span>
           <span>授权账号：{authStatus?.authorizedAdvertiserCount ?? apiProbe.advertiserCount}</span>
           <span>报表探针：{apiProbe.reportRows} 行 / 余额 {apiProbe.fundRows} 行</span>
+          <span>本地事实：{reportSyncSummary?.storedFactCount ?? 0} 条</span>
+          <span>最近同步：{reportSyncSummary?.lastRun?.status ?? 'idle'}</span>
         </section>
       </main>
     </div>
