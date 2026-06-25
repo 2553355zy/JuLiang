@@ -4,6 +4,7 @@ export interface RuntimeConfigStatus {
   hasOceanEngineAccessToken: boolean
   hasOceanEngineRefreshToken: boolean
   hasOceanEngineWriteExecutor: boolean
+  confirmedOceanEngineWriteEndpoints: string[]
   hasFeishuWebhook: boolean
   operationAllowlistedAccountIds: string[]
   executionMode: 'readonly' | 'preview' | 'live'
@@ -18,6 +19,7 @@ export function getBrowserRuntimeConfigStatus(): RuntimeConfigStatus {
     hasOceanEngineAccessToken: false,
     hasOceanEngineRefreshToken: false,
     hasOceanEngineWriteExecutor: false,
+    confirmedOceanEngineWriteEndpoints: [],
     hasFeishuWebhook: false,
     operationAllowlistedAccountIds: [],
     executionMode: 'readonly',

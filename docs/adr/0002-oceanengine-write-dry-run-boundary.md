@@ -24,7 +24,7 @@ Sources checked on 2026-06-25:
 
 ## Decision
 
-Keep live write execution disabled by default. The Electron write executor returns a dry-run request mapping instead of calling OceanEngine.
+Keep live write execution disabled by default. The Electron write executor returns a dry-run request mapping unless the runtime explicitly enables live write mode and confirms the exact endpoint.
 
 Current mappings:
 
@@ -52,6 +52,8 @@ Live POST remains unavailable until all of these are true:
 
 - `JULIANG_EXECUTION_MODE=live`
 - `JULIANG_ENABLE_OCEANENGINE_WRITE=true`
+- `JULIANG_CONFIRMED_OCEANENGINE_WRITE_ENDPOINTS` includes the exact endpoint, such as `/open_api/2/advertiser/update/budget/`
+- `OCEANENGINE_ACCESS_TOKEN` is configured at runtime
 - target account is in `JULIANG_OPERATION_ALLOWLIST`
 - confirmation keyword matches
 - pre-operation state snapshot is available
@@ -61,4 +63,4 @@ Live POST remains unavailable until all of these are true:
 
 ## Consequences
 
-The UI can show the exact dry-run endpoint and body during real execution checks. This makes the next real integration auditable and keeps destructive or money-moving operations off until the endpoint and account type are confirmed.
+The UI can show the exact dry-run endpoint and body during real execution checks. This makes the next real integration auditable and keeps destructive or money-moving operations off until the endpoint and account type are confirmed. When the endpoint is confirmed later, the same Electron boundary can perform the POST without moving write logic into React UI code.
