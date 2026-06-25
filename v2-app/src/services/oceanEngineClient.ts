@@ -23,6 +23,20 @@ export function createOceanEngineClient(transport: OceanEngineTransport): OceanE
   }
 }
 
+export function createElectronOceanEngineClient(): OceanEngineClient | null {
+  if (typeof window === 'undefined' || !window.juliang?.oceanEngine) {
+    return null
+  }
+
+  const { oceanEngine } = window.juliang
+  return {
+    getAuthStatus: oceanEngine.getAuthStatus,
+    listAuthorizedAdvertisers: oceanEngine.listAuthorizedAdvertisers,
+    queryReport: oceanEngine.queryReport,
+    getFundBalances: oceanEngine.getFundBalances,
+  }
+}
+
 export function createMockOceanEngineClient(): OceanEngineClient {
   return createOceanEngineClient({
     async request<T>(endpoint: string, body?: unknown): Promise<T> {
@@ -85,4 +99,3 @@ function buildMockFundBalances(advertiserIds: string[]): OceanEngineFundBalance[
     grantBalance: 300 + index * 800,
   }))
 }
-

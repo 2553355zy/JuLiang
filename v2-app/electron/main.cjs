@@ -1,5 +1,6 @@
 const path = require('node:path')
 const { app, BrowserWindow, ipcMain, shell } = require('electron')
+const oceanEngineReadOnly = require('./oceanEngineReadOnly.cjs')
 
 const isDev = Boolean(process.env.VITE_DEV_SERVER_URL)
 const executionMode = process.env.JULIANG_EXECUTION_MODE || 'readonly'
@@ -56,6 +57,13 @@ ipcMain.handle('runtime:getConfigStatus', () => ({
   executionMode: ['readonly', 'preview', 'live'].includes(executionMode) ? executionMode : 'readonly',
   source: 'electron-main',
 }))
+
+ipcMain.handle('oceanengine:getAuthStatus', oceanEngineReadOnly.getAuthStatus)
+ipcMain.handle('oceanengine:listAuthorizedAdvertisers', oceanEngineReadOnly.listAuthorizedAdvertisers)
+ipcMain.handle('oceanengine:queryReport', (_event, query) => oceanEngineReadOnly.queryReport(query))
+ipcMain.handle('oceanengine:getFundBalances', (_event, advertiserIds) =>
+  oceanEngineReadOnly.getFundBalances(advertiserIds),
+)
 
 app.whenReady().then(() => {
   createMainWindow()

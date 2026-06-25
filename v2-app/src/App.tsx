@@ -22,7 +22,7 @@ import type { OceanEngineAuthStatus } from './domain/oceanEngine'
 import type { OperationAuditSummary } from './domain/operationAudit'
 import type { ReportSyncSummary } from './domain/reportSync'
 import { buildNotificationQueue } from './services/notificationRouter'
-import { createMockOceanEngineClient } from './services/oceanEngineClient'
+import { createElectronOceanEngineClient, createMockOceanEngineClient } from './services/oceanEngineClient'
 import { resolveOwnerRoutes } from './services/ownerRoutingService'
 import { buildOperationQueue } from './services/operationPlanner'
 import { createLocalStorageOperationAuditRepository } from './services/operationAuditRepository'
@@ -52,7 +52,9 @@ const materialAttributionSummary = attributeMaterials(
     ownerName: signal.owner.name,
   })),
 )
-const oceanEngineClient = createMockOceanEngineClient()
+const electronOceanEngineClient = createElectronOceanEngineClient()
+const oceanEngineClient = electronOceanEngineClient ?? createMockOceanEngineClient()
+const oceanEngineDataSource = electronOceanEngineClient ? 'electron-readonly' : 'mock-browser'
 const metricRepository = createLocalStorageMetricRepository()
 const reportSyncService = createReportSyncService(oceanEngineClient, metricRepository)
 const operationAuditRepository = createLocalStorageOperationAuditRepository()
@@ -74,17 +76,26 @@ function App() {
     async function loadRuntimeState() {
       const [config, auth, advertisers, syncSummary, fundRows, auditSummary] = await Promise.all([
         loadRuntimeConfigStatus(),
-        oceanEngineClient.getAuthStatus(),
-        oceanEngineClient.listAuthorizedAdvertisers(),
+        safeRead(oceanEngineClient.getAuthStatus(), {
+          hasAccessToken: false,
+          hasRefreshToken: false,
+          authorizedAdvertiserCount: 0,
+        }),
+        safeRead(oceanEngineClient.listAuthorizedAdvertisers(), []),
         runReportSync(),
-        oceanEngineClient.getFundBalances(accounts.map((account) => account.id)),
+        safeRead(oceanEngineClient.getFundBalances(accounts.map((account) => account.id)), []),
         operationExecutionService.previewPlans(operationQueue.plans),
       ])
 
       if (!mounted) return
 
+      const normalizedAuth = {
+        ...auth,
+        authorizedAdvertiserCount: Math.max(auth.authorizedAdvertiserCount, advertisers.length),
+      }
+
       setRuntimeConfig(config)
-      setAuthStatus(auth)
+      setAuthStatus(normalizedAuth)
       setApiProbe({
         advertiserCount: advertisers.length,
         reportRows: syncSummary.lastRun?.rowCount ?? 0,
@@ -288,6 +299,7 @@ function App() {
           <span>需立即跟进 {notificationQueue.actionCount} 条</span>
           <span>{runtimeConfig.hasFeishuWebhook ? '飞书 Webhook 已配置' : '飞书 Webhook 待配置'}</span>
           <span>配置来源：{runtimeConfig.source}</span>
+          <span>数据源：{oceanEngineDataSource}</span>
           <span>授权账号：{authStatus?.authorizedAdvertiserCount ?? apiProbe.advertiserCount}</span>
           <span>报表探针：{apiProbe.reportRows} 行 / 余额 {apiProbe.fundRows} 行</span>
           <span>本地事实：{reportSyncSummary?.storedFactCount ?? 0} 条</span>
@@ -302,6 +314,14 @@ function App() {
       </main>
     </div>
   )
+}
+
+async function safeRead<T>(promise: Promise<T>, fallback: T): Promise<T> {
+  try {
+    return await promise
+  } catch {
+    return fallback
+  }
 }
 
 interface MetricCardProps {
