@@ -1,6 +1,7 @@
 import type { RuntimeConfigStatus } from '../services/runtimeConfig'
 import type { FeishuNotificationDraft } from '../domain/feishu'
 import type { NotificationDeliveryResult } from '../domain/notificationDelivery'
+import type { OperationAuditLog, OperationAuditSummary } from '../domain/operationAudit'
 import type {
   OceanEngineAdvertiser,
   OceanEngineAuthStatus,
@@ -26,6 +27,11 @@ declare global {
       }
       feishu?: {
         sendNotification: (draft: FeishuNotificationDraft) => Promise<NotificationDeliveryResult>
+      }
+      operationAudit?: {
+        saveLogs: (logs: OperationAuditLog[]) => Promise<void>
+        listLogs: () => Promise<OperationAuditLog[]>
+        getSummary: () => Promise<OperationAuditSummary>
       }
     }
   }

@@ -43,7 +43,7 @@ import { createAdvertiserSyncService } from './services/advertiserSyncService'
 import { createElectronOceanEngineClient, createMockOceanEngineClient } from './services/oceanEngineClient'
 import { resolveOwnerRoutes } from './services/ownerRoutingService'
 import { buildOperationQueue } from './services/operationPlanner'
-import { createLocalStorageOperationAuditRepository } from './services/operationAuditRepository'
+import { createOperationAuditRepository } from './services/operationAuditRepository'
 import { confirmationKeyword, createOperationExecutionService } from './services/operationExecutionService'
 import { attributeMaterials } from './services/materialAttributionService'
 import { createLocalStorageFundRepository } from './services/fundRepository'
@@ -74,7 +74,7 @@ const metricRepository = createLocalStorageMetricRepository()
 const reportSyncService = createReportSyncService(oceanEngineClient, metricRepository)
 const fundRepository = createLocalStorageFundRepository(advertiserSource)
 const fundSyncService = createFundSyncService(oceanEngineClient, fundRepository, advertiserSource)
-const operationAuditRepository = createLocalStorageOperationAuditRepository()
+const operationAuditRepository = createOperationAuditRepository()
 const operationExecutionService = createOperationExecutionService(operationAuditRepository)
 const notificationDeliveryRepository = createLocalStorageNotificationDeliveryRepository()
 const notificationDeliveryService = createNotificationDeliveryService(notificationDeliveryRepository)

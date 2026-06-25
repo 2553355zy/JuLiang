@@ -19,5 +19,4 @@
 
 ## Current Release State
 
-The current branch is a functional skeleton and UI integration build. It is not ready for live OceanEngine operations.
-
+The current branch is a functional skeleton and UI integration build. Operation audit can persist through the Electron main process, but the build is not ready for live OceanEngine operations until database-backed audit/history, account allowlists, and operation rollback checks are verified.

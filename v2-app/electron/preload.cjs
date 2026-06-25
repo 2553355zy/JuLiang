@@ -12,4 +12,9 @@ contextBridge.exposeInMainWorld('juliang', {
   feishu: {
     sendNotification: (draft) => ipcRenderer.invoke('feishu:sendNotification', draft),
   },
+  operationAudit: {
+    saveLogs: (logs) => ipcRenderer.invoke('operationAudit:saveLogs', logs),
+    listLogs: () => ipcRenderer.invoke('operationAudit:listLogs'),
+    getSummary: () => ipcRenderer.invoke('operationAudit:getSummary'),
+  },
 })

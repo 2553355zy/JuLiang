@@ -8,6 +8,14 @@ export interface OperationAuditRepository {
 
 const auditKey = 'juliang.v2.operationAuditLogs'
 
+export function createOperationAuditRepository(): OperationAuditRepository {
+  if (typeof window !== 'undefined' && window.juliang?.operationAudit) {
+    return createElectronOperationAuditRepository(window.juliang.operationAudit)
+  }
+
+  return createLocalStorageOperationAuditRepository()
+}
+
 export function createLocalStorageOperationAuditRepository(): OperationAuditRepository {
   return {
     async saveLogs(logs) {
@@ -22,6 +30,16 @@ export function createLocalStorageOperationAuditRepository(): OperationAuditRepo
     async getSummary() {
       return summarize(readLogs())
     },
+  }
+}
+
+function createElectronOperationAuditRepository(
+  bridge: NonNullable<NonNullable<Window['juliang']>['operationAudit']>,
+): OperationAuditRepository {
+  return {
+    saveLogs: bridge.saveLogs,
+    listLogs: bridge.listLogs,
+    getSummary: bridge.getSummary,
   }
 }
 
@@ -51,4 +69,3 @@ function writeLogs(logs: OperationAuditLog[]): void {
   if (typeof window === 'undefined') return
   window.localStorage.setItem(auditKey, JSON.stringify(logs))
 }
-

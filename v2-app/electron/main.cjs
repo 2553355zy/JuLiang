@@ -2,6 +2,7 @@ const path = require('node:path')
 const { app, BrowserWindow, ipcMain, shell } = require('electron')
 const feishuNotifier = require('./feishuNotifier.cjs')
 const oceanEngineReadOnly = require('./oceanEngineReadOnly.cjs')
+const operationAuditStore = require('./operationAuditStore.cjs')
 
 const isDev = Boolean(process.env.VITE_DEV_SERVER_URL)
 const executionMode = process.env.JULIANG_EXECUTION_MODE || 'readonly'
@@ -68,8 +69,12 @@ ipcMain.handle('oceanengine:getFundBalances', (_event, advertiserIds) =>
   oceanEngineReadOnly.getFundBalances(advertiserIds),
 )
 ipcMain.handle('feishu:sendNotification', (_event, draft) => feishuNotifier.sendNotification(draft))
+ipcMain.handle('operationAudit:saveLogs', (_event, logs) => operationAuditStore.saveLogs(logs))
+ipcMain.handle('operationAudit:listLogs', () => operationAuditStore.listLogs())
+ipcMain.handle('operationAudit:getSummary', () => operationAuditStore.getSummary())
 
 app.whenReady().then(() => {
+  operationAuditStore.configure(app.getPath('userData'))
   createMainWindow()
 
   app.on('activate', () => {
