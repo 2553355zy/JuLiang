@@ -19,11 +19,14 @@ import { buildMaterialSignalNotification } from './domain/feishu'
 import { evaluatePortfolioDiagnostics, formatMoney } from './domain/roiEngine'
 import { accounts, materialSignals, ownerRoutes, recommendations } from './data/mockDashboard'
 import type { OceanEngineAuthStatus } from './domain/oceanEngine'
+import type { OperationAuditSummary } from './domain/operationAudit'
 import type { ReportSyncSummary } from './domain/reportSync'
 import { buildNotificationQueue } from './services/notificationRouter'
 import { createMockOceanEngineClient } from './services/oceanEngineClient'
 import { resolveOwnerRoutes } from './services/ownerRoutingService'
 import { buildOperationQueue } from './services/operationPlanner'
+import { createLocalStorageOperationAuditRepository } from './services/operationAuditRepository'
+import { createOperationExecutionService } from './services/operationExecutionService'
 import { attributeMaterials } from './services/materialAttributionService'
 import { createLocalStorageMetricRepository } from './services/metricRepository'
 import { createReportSyncService } from './services/reportSyncService'
@@ -52,6 +55,8 @@ const materialAttributionSummary = attributeMaterials(
 const oceanEngineClient = createMockOceanEngineClient()
 const metricRepository = createLocalStorageMetricRepository()
 const reportSyncService = createReportSyncService(oceanEngineClient, metricRepository)
+const operationAuditRepository = createLocalStorageOperationAuditRepository()
+const operationExecutionService = createOperationExecutionService(operationAuditRepository)
 const totalSpend = accounts.reduce((sum, account) => sum + account.metrics.spend, 0)
 const totalRevenue = accounts.reduce((sum, account) => sum + account.metrics.revenue, 0)
 const blendedRoi = totalRevenue / totalSpend
@@ -61,17 +66,19 @@ function App() {
   const [authStatus, setAuthStatus] = useState<OceanEngineAuthStatus | null>(null)
   const [apiProbe, setApiProbe] = useState({ advertiserCount: 0, reportRows: 0, fundRows: 0 })
   const [reportSyncSummary, setReportSyncSummary] = useState<ReportSyncSummary | null>(null)
+  const [operationAuditSummary, setOperationAuditSummary] = useState<OperationAuditSummary | null>(null)
 
   useEffect(() => {
     let mounted = true
 
     async function loadRuntimeState() {
-      const [config, auth, advertisers, syncSummary, fundRows] = await Promise.all([
+      const [config, auth, advertisers, syncSummary, fundRows, auditSummary] = await Promise.all([
         loadRuntimeConfigStatus(),
         oceanEngineClient.getAuthStatus(),
         oceanEngineClient.listAuthorizedAdvertisers(),
         runReportSync(),
         oceanEngineClient.getFundBalances(accounts.map((account) => account.id)),
+        operationExecutionService.previewPlans(operationQueue.plans),
       ])
 
       if (!mounted) return
@@ -84,6 +91,7 @@ function App() {
         fundRows: fundRows.length,
       })
       setReportSyncSummary(syncSummary)
+      setOperationAuditSummary(auditSummary)
     }
 
     loadRuntimeState()
@@ -284,6 +292,7 @@ function App() {
           <span>报表探针：{apiProbe.reportRows} 行 / 余额 {apiProbe.fundRows} 行</span>
           <span>本地事实：{reportSyncSummary?.storedFactCount ?? 0} 条</span>
           <span>最近同步：{reportSyncSummary?.lastRun?.status ?? 'idle'}</span>
+          <span>操作审计：{operationAuditSummary?.total ?? 0} 条 / 阻断 {operationAuditSummary?.blocked ?? 0}</span>
           <span>扩量候选：{portfolioDiagnostics.scaleCandidateCount}</span>
           <span>素材信号：{portfolioDiagnostics.materialSignalCount}</span>
           <span>回传异常：{portfolioDiagnostics.trackingIssueCount}</span>
