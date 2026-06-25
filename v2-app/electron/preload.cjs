@@ -9,4 +9,7 @@ contextBridge.exposeInMainWorld('juliang', {
     queryReport: (query) => ipcRenderer.invoke('oceanengine:queryReport', query),
     getFundBalances: (advertiserIds) => ipcRenderer.invoke('oceanengine:getFundBalances', advertiserIds),
   },
+  feishu: {
+    sendNotification: (draft) => ipcRenderer.invoke('feishu:sendNotification', draft),
+  },
 })

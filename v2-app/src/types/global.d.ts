@@ -1,4 +1,6 @@
 import type { RuntimeConfigStatus } from '../services/runtimeConfig'
+import type { FeishuNotificationDraft } from '../domain/feishu'
+import type { NotificationDeliveryResult } from '../domain/notificationDelivery'
 import type {
   OceanEngineAdvertiser,
   OceanEngineAuthStatus,
@@ -21,6 +23,9 @@ declare global {
         listAuthorizedAdvertisers: () => Promise<OceanEngineAdvertiser[]>
         queryReport: (query: OceanEngineReportQuery) => Promise<OceanEngineReportRow[]>
         getFundBalances: (advertiserIds: string[]) => Promise<OceanEngineFundBalance[]>
+      }
+      feishu?: {
+        sendNotification: (draft: FeishuNotificationDraft) => Promise<NotificationDeliveryResult>
       }
     }
   }

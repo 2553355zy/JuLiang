@@ -1,9 +1,11 @@
 const path = require('node:path')
 const { app, BrowserWindow, ipcMain, shell } = require('electron')
+const feishuNotifier = require('./feishuNotifier.cjs')
 const oceanEngineReadOnly = require('./oceanEngineReadOnly.cjs')
 
 const isDev = Boolean(process.env.VITE_DEV_SERVER_URL)
 const executionMode = process.env.JULIANG_EXECUTION_MODE || 'readonly'
+const notificationMode = process.env.JULIANG_NOTIFICATION_MODE || 'preview'
 
 app.setName('JuLiang V2')
 
@@ -55,6 +57,7 @@ ipcMain.handle('runtime:getConfigStatus', () => ({
   hasOceanEngineRefreshToken: Boolean(process.env.OCEANENGINE_REFRESH_TOKEN),
   hasFeishuWebhook: Boolean(process.env.FEISHU_WEBHOOK_URL),
   executionMode: ['readonly', 'preview', 'live'].includes(executionMode) ? executionMode : 'readonly',
+  notificationMode: ['preview', 'live'].includes(notificationMode) ? notificationMode : 'preview',
   source: 'electron-main',
 }))
 
@@ -64,6 +67,7 @@ ipcMain.handle('oceanengine:queryReport', (_event, query) => oceanEngineReadOnly
 ipcMain.handle('oceanengine:getFundBalances', (_event, advertiserIds) =>
   oceanEngineReadOnly.getFundBalances(advertiserIds),
 )
+ipcMain.handle('feishu:sendNotification', (_event, draft) => feishuNotifier.sendNotification(draft))
 
 app.whenReady().then(() => {
   createMainWindow()

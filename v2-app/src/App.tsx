@@ -17,6 +17,7 @@ import { useEffect, useMemo, useState } from 'react'
 import './App.css'
 import { buildMaterialSignalNotification } from './domain/feishu'
 import type { FundBalanceSummary } from './domain/fundSync'
+import type { NotificationDeliverySummary } from './domain/notificationDelivery'
 import { evaluateAccount, evaluatePortfolioDiagnostics, formatMoney } from './domain/roiEngine'
 import {
   accounts as fallbackAccounts,
@@ -39,6 +40,8 @@ import { attributeMaterials } from './services/materialAttributionService'
 import { createLocalStorageFundRepository } from './services/fundRepository'
 import { createFundSyncService } from './services/fundSyncService'
 import { createLocalStorageMetricRepository } from './services/metricRepository'
+import { createNotificationDeliveryService } from './services/notificationDeliveryService'
+import { createLocalStorageNotificationDeliveryRepository } from './services/notificationDeliveryRepository'
 import { buildPortfolioProjection } from './services/portfolioProjectionService'
 import { createReportSyncService } from './services/reportSyncService'
 import {
@@ -63,6 +66,8 @@ const fundRepository = createLocalStorageFundRepository(advertiserSource)
 const fundSyncService = createFundSyncService(oceanEngineClient, fundRepository, advertiserSource)
 const operationAuditRepository = createLocalStorageOperationAuditRepository()
 const operationExecutionService = createOperationExecutionService(operationAuditRepository)
+const notificationDeliveryRepository = createLocalStorageNotificationDeliveryRepository()
+const notificationDeliveryService = createNotificationDeliveryService(notificationDeliveryRepository)
 
 function App() {
   const [runtimeConfig, setRuntimeConfig] = useState<RuntimeConfigStatus>(getBrowserRuntimeConfigStatus)
@@ -75,6 +80,8 @@ function App() {
   const [reportSyncSummary, setReportSyncSummary] = useState<ReportSyncSummary | null>(null)
   const [fundSummary, setFundSummary] = useState<FundBalanceSummary | null>(null)
   const [operationAuditSummary, setOperationAuditSummary] = useState<OperationAuditSummary | null>(null)
+  const [notificationDeliverySummary, setNotificationDeliverySummary] =
+    useState<NotificationDeliverySummary | null>(null)
 
   const displayAccounts = portfolioProjection.accounts
   const displaySignals = portfolioProjection.materialSignals
@@ -154,6 +161,7 @@ function App() {
       })
       setReportSyncSummary(syncSummary)
       setOperationAuditSummary(auditSummary)
+      setNotificationDeliverySummary(await notificationDeliveryRepository.getSummary())
     }
 
     loadRuntimeState()
@@ -233,6 +241,11 @@ function App() {
       ...current,
       fundRows: summary.storedBalanceCount,
     }))
+  }
+
+  async function handleDeliverNotification() {
+    const summary = await notificationDeliveryService.deliver(notificationDraft)
+    setNotificationDeliverySummary(summary)
   }
 
   const authorizedAdvertisers = advertiserSummary?.advertisers ?? []
@@ -398,6 +411,14 @@ function App() {
                 <span>接收人：{notificationDraft.receiver}</span>
                 <span>去重键：{notificationDraft.dedupeKey}</span>
               </div>
+              <div className="feishu-actions">
+                <span>模式：{runtimeConfig.notificationMode}</span>
+                <span>最近：{notificationDeliverySummary?.lastLog?.status ?? 'idle'}</span>
+                <button className="ghost-button compact" type="button" onClick={handleDeliverNotification}>
+                  <Bell size={15} />
+                  发送预览
+                </button>
+              </div>
             </div>
             <div className="operation-preview" id="operations">
               <h3>待预览操作 · {operationQueue.plans.length} 条 · 高风险 {operationQueue.highRiskCount} 条</h3>
@@ -419,6 +440,8 @@ function App() {
           <span>飞书通知草稿 {notificationQueue.drafts.length} 条</span>
           <span>需立即跟进 {notificationQueue.actionCount} 条</span>
           <span>{runtimeConfig.hasFeishuWebhook ? '飞书 Webhook 已配置' : '飞书 Webhook 待配置'}</span>
+          <span>飞书模式：{runtimeConfig.notificationMode}</span>
+          <span>通知投递：{notificationDeliverySummary?.lastLog?.status ?? 'idle'} / sent {notificationDeliverySummary?.sent ?? 0}</span>
           <span>配置来源：{runtimeConfig.source}</span>
           <span>数据源：{oceanEngineDataSource}</span>
           <span>指标来源：{projectionSourceLabel}</span>

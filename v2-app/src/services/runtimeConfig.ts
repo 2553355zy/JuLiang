@@ -5,6 +5,7 @@ export interface RuntimeConfigStatus {
   hasOceanEngineRefreshToken: boolean
   hasFeishuWebhook: boolean
   executionMode: 'readonly' | 'preview' | 'live'
+  notificationMode: 'preview' | 'live'
   source: 'browser-fallback' | 'electron-main'
 }
 
@@ -16,6 +17,7 @@ export function getBrowserRuntimeConfigStatus(): RuntimeConfigStatus {
     hasOceanEngineRefreshToken: false,
     hasFeishuWebhook: false,
     executionMode: 'readonly',
+    notificationMode: 'preview',
     source: 'browser-fallback',
   }
 }
@@ -27,4 +29,3 @@ export async function loadRuntimeConfigStatus(): Promise<RuntimeConfigStatus> {
 
   return getBrowserRuntimeConfigStatus()
 }
-
