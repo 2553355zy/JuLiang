@@ -8,7 +8,7 @@ export interface OperationStateSnapshot {
   capturedAt: string
   budget?: number
   status?: 'running' | 'paused' | 'closed' | 'unknown'
-  source: 'unavailable' | 'projection' | 'mock' | 'oceanengine'
+  source: 'unavailable' | 'not_configured' | 'projection' | 'mock' | 'oceanengine'
 }
 
 export interface OperationExpectedChange {

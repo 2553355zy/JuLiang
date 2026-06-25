@@ -5,6 +5,13 @@ export interface OperationStateReader {
   readBeforeState: (plan: OperationPlan) => Promise<OperationStateSnapshot>
 }
 
+export interface OceanEngineOperationStateClient {
+  getAccountState: (accountId: string) => Promise<{
+    budget?: number
+    status?: OperationStateSnapshot['status']
+  }>
+}
+
 export function createProjectionOperationStateReader(): OperationStateReader {
   return {
     async readBeforeState(plan) {
@@ -20,11 +27,37 @@ export function createProjectionOperationStateReader(): OperationStateReader {
   }
 }
 
+export function createOceanEngineOperationStateReader(
+  client?: OceanEngineOperationStateClient,
+): OperationStateReader {
+  return {
+    async readBeforeState(plan) {
+      if (!client) return buildNotConfiguredSnapshot()
+      if (plan.targetType !== 'account') return buildUnavailableSnapshot()
+
+      const state = await client.getAccountState(plan.targetId)
+      return {
+        capturedAt: new Date().toISOString(),
+        budget: state.budget,
+        status: state.status ?? 'unknown',
+        source: 'oceanengine',
+      }
+    },
+  }
+}
+
 export function createUnavailableOperationStateReader(): OperationStateReader {
   return {
     async readBeforeState() {
       return buildUnavailableSnapshot()
     },
+  }
+}
+
+function buildNotConfiguredSnapshot(): OperationStateSnapshot {
+  return {
+    capturedAt: new Date().toISOString(),
+    source: 'not_configured',
   }
 }
 
