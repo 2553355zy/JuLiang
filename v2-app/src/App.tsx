@@ -17,10 +17,16 @@ import './App.css'
 import { buildMaterialSignalNotification } from './domain/feishu'
 import { formatMoney } from './domain/roiEngine'
 import { accounts, materialSignals, recommendations } from './data/mockDashboard'
+import { buildNotificationQueue } from './services/notificationRouter'
+import { buildOperationQueue } from './services/operationPlanner'
+import { getRuntimeConfigStatus } from './services/runtimeConfig'
 
 const topAccounts = [...accounts].sort((a, b) => b.metrics.roi - a.metrics.roi)
 const heroSignal = materialSignals[0]
 const notificationDraft = buildMaterialSignalNotification(heroSignal)
+const notificationQueue = buildNotificationQueue(materialSignals)
+const operationQueue = buildOperationQueue(recommendations)
+const runtimeConfig = getRuntimeConfigStatus()
 const totalSpend = accounts.reduce((sum, account) => sum + account.metrics.spend, 0)
 const totalRevenue = accounts.reduce((sum, account) => sum + account.metrics.revenue, 0)
 const totalProfit = totalRevenue - totalSpend
@@ -58,7 +64,7 @@ function App() {
           <ShieldCheck size={18} />
           <div>
             <strong>安全模式</strong>
-            <span>真实执行前强制预览、确认和审计。</span>
+            <span>当前 {runtimeConfig.executionMode}，真实执行前强制预览、确认和审计。</span>
           </div>
         </div>
       </aside>
@@ -70,6 +76,9 @@ function App() {
             <h1>巨量账号增长总控台</h1>
           </div>
           <div className="topbar-actions">
+            <span className="runtime-pill">
+              {runtimeConfig.hasOceanEngineClient ? 'API 已配置' : 'API 待配置'}
+            </span>
             <label className="search">
               <Search size={16} />
               <input placeholder="搜索账号、素材、小说名" />
@@ -172,19 +181,25 @@ function App() {
               </div>
             </div>
             <div className="operation-preview" id="operations">
-              <h3>待预览操作</h3>
-              {recommendations
-                .filter((item) => item.operationPlan)
-                .map((item) => (
-                  <div className="operation-row" key={item.id}>
+              <h3>待预览操作 · {operationQueue.plans.length} 条 · 高风险 {operationQueue.highRiskCount} 条</h3>
+              {operationQueue.plans.map((plan) => (
+                  <div className="operation-row" key={plan.id}>
                     <CircleDollarSign size={16} />
-                    <span>{item.operationPlan?.targetName}</span>
-                    <strong>{item.operationPlan?.action}</strong>
-                    <em>{item.operationPlan?.risk}</em>
+                    <span>{plan.targetName}</span>
+                    <strong>{plan.action}</strong>
+                    <em>{plan.risk}</em>
                   </div>
                 ))}
+              <p className="queue-note">
+                需要确认 {operationQueue.confirmationRequiredCount} 条；实时执行默认关闭。
+              </p>
             </div>
           </div>
+        </section>
+        <section className="footer-status">
+          <span>飞书通知草稿 {notificationQueue.drafts.length} 条</span>
+          <span>需立即跟进 {notificationQueue.actionCount} 条</span>
+          <span>{runtimeConfig.hasFeishuWebhook ? '飞书 Webhook 已配置' : '飞书 Webhook 待配置'}</span>
         </section>
       </main>
     </div>

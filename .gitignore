@@ -1,7 +1,10 @@
 # V1 packaged artifact and local secrets
 巨量监控内测版.exe
+*.exe
+*.bak
 _internal/
-desktop/config.local.json
+desktop/
+tools/
 
 # Dependencies and build outputs
 node_modules/

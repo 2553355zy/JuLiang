@@ -169,6 +169,19 @@
   cursor: pointer;
 }
 
+.runtime-pill {
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  background: #fff7ed;
+  color: #b54708;
+  border: 1px solid #fed7aa;
+  padding: 0 10px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
 .primary-button {
   color: white;
   background: #1f66e5;
@@ -486,6 +499,28 @@
 .operation-row em {
   font-style: normal;
   color: #b54708;
+}
+
+.queue-note {
+  margin: 10px 0 0;
+  color: #667085;
+  font-size: 12px;
+}
+
+.footer-status {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.footer-status span {
+  border: 1px solid #e0e6ef;
+  border-radius: 999px;
+  background: white;
+  color: #475467;
+  padding: 7px 10px;
+  font-size: 12px;
 }
 
 @media (max-width: 1180px) {

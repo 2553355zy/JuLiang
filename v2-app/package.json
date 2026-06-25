@@ -5,6 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "desktop:dev": "powershell -ExecutionPolicy Bypass -File ./scripts/start-desktop-dev.ps1",
+    "desktop:preview": "powershell -ExecutionPolicy Bypass -File ./scripts/start-desktop-preview.ps1",
     "typecheck": "tsc -b",
     "build": "tsc -b && vite build",
     "lint": "oxlint",
