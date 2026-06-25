@@ -4,12 +4,14 @@ import {
   buildLiveOperationAdapterRequest,
   buildOperationIdempotencyKey,
   inferLiveOperationType,
+  type OperationStateSnapshot,
   type LiveOperationResult,
 } from '../domain/operationExecution'
 import type { OperationPlan } from '../domain/types'
 import { createNoopOperationAdapter, type OperationAdapter } from './operationAdapter'
 import type { OperationAuditRepository } from './operationAuditRepository'
 import type { OperationLiveGate } from './operationPlanner'
+import { createProjectionOperationStateReader, type OperationStateReader } from './operationStateReader'
 
 export interface OperationExecutionService {
   previewPlans: (plans: OperationPlan[]) => Promise<OperationAuditSummary>
@@ -25,6 +27,7 @@ export interface OperationExecutionService {
 export function createOperationExecutionService(
   auditRepository: OperationAuditRepository,
   adapter: OperationAdapter = createNoopOperationAdapter(),
+  stateReader: OperationStateReader = createProjectionOperationStateReader(),
 ): OperationExecutionService {
   return {
     async previewPlans(plans) {
@@ -50,7 +53,8 @@ export function createOperationExecutionService(
       return auditRepository.getSummary()
     },
     async requestLiveExecution(plan, gate, confirmationText) {
-      const result = await buildLiveExecutionResult(plan, gate, confirmationText, adapter)
+      const beforeState = await stateReader.readBeforeState(plan)
+      const result = await buildLiveExecutionResult(plan, gate, confirmationText, adapter, beforeState)
       await auditRepository.saveLogs([
         createLog(plan, result.status === 'executed' ? 'executed' : 'blocked', result.message),
       ])
@@ -75,9 +79,10 @@ function buildLiveExecutionResult(
   gate: OperationLiveGate | undefined,
   confirmationText: string,
   adapter: OperationAdapter,
+  beforeState: OperationStateSnapshot,
 ): Promise<LiveOperationResult> {
   const idempotencyKey = buildOperationIdempotencyKey(plan)
-  const verification = buildOperationVerificationPlan(plan)
+  const verification = buildOperationVerificationPlan(plan, beforeState)
   const checkedAt = new Date().toISOString()
 
   if (!gate || gate.status !== 'live_candidate') {
@@ -111,7 +116,7 @@ function buildLiveExecutionResult(
     })
   }
 
-  return adapter.execute(buildLiveOperationAdapterRequest(plan))
+  return adapter.execute(buildLiveOperationAdapterRequest(plan, beforeState))
 }
 
 function createLog(

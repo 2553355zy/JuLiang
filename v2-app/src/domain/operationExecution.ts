@@ -72,7 +72,10 @@ export function buildOperationIdempotencyKey(plan: OperationPlan): string {
   ].join(':')
 }
 
-export function buildLiveOperationAdapterRequest(plan: OperationPlan): LiveOperationAdapterRequest {
+export function buildLiveOperationAdapterRequest(
+  plan: OperationPlan,
+  before?: OperationStateSnapshot,
+): LiveOperationAdapterRequest {
   return {
     operationType: inferLiveOperationType(plan),
     target: {
@@ -84,7 +87,7 @@ export function buildLiveOperationAdapterRequest(plan: OperationPlan): LiveOpera
     rawAction: plan.action,
     reason: plan.reason,
     params: inferLiveOperationParams(plan),
-    verification: buildOperationVerificationPlan(plan),
+    verification: buildOperationVerificationPlan(plan, before),
     idempotencyKey: buildOperationIdempotencyKey(plan),
   }
 }
@@ -115,9 +118,12 @@ export function inferLiveOperationParams(plan: OperationPlan): LiveOperationPara
   }
 }
 
-export function buildOperationVerificationPlan(plan: OperationPlan): OperationVerificationPlan {
+export function buildOperationVerificationPlan(
+  plan: OperationPlan,
+  beforeState?: OperationStateSnapshot,
+): OperationVerificationPlan {
   const params = inferLiveOperationParams(plan)
-  const before = buildStateSnapshot(plan)
+  const before = beforeState ?? buildStateSnapshot(plan)
 
   if (params.operationType === 'adjust_budget') {
     const nextBudget = calculateNextBudget(before.budget, params.direction, params.percent)
