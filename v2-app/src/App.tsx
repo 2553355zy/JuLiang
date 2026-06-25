@@ -32,6 +32,11 @@ import type { AuthorizedAdvertiserRecord, AuthorizedAdvertiserSummary } from './
 import type { OceanEngineAuthStatus } from './domain/oceanEngine'
 import type { OperationAuditSummary } from './domain/operationAudit'
 import type { ReportSyncSummary } from './domain/reportSync'
+import type {
+  SoftwareCenterRun,
+  SoftwareCenterRunSummary,
+  SoftwareCenterRunTrigger,
+} from './domain/softwareCenter'
 import { buildNotificationQueue } from './services/notificationRouter'
 import { createLocalStorageAdvertiserRepository } from './services/advertiserRepository'
 import { createAdvertiserSyncService } from './services/advertiserSyncService'
@@ -48,6 +53,7 @@ import { createNotificationDeliveryService } from './services/notificationDelive
 import { createLocalStorageNotificationDeliveryRepository } from './services/notificationDeliveryRepository'
 import { buildPortfolioProjection } from './services/portfolioProjectionService'
 import { createReportSyncService } from './services/reportSyncService'
+import { createLocalStorageSoftwareCenterRepository } from './services/softwareCenterRepository'
 import {
   getBrowserRuntimeConfigStatus,
   loadRuntimeConfigStatus,
@@ -72,6 +78,7 @@ const operationAuditRepository = createLocalStorageOperationAuditRepository()
 const operationExecutionService = createOperationExecutionService(operationAuditRepository)
 const notificationDeliveryRepository = createLocalStorageNotificationDeliveryRepository()
 const notificationDeliveryService = createNotificationDeliveryService(notificationDeliveryRepository)
+const softwareCenterRepository = createLocalStorageSoftwareCenterRepository()
 
 function App() {
   const [runtimeConfig, setRuntimeConfig] = useState<RuntimeConfigStatus>(getBrowserRuntimeConfigStatus)
@@ -87,6 +94,7 @@ function App() {
   const [notificationDeliverySummary, setNotificationDeliverySummary] =
     useState<NotificationDeliverySummary | null>(null)
   const [softwareRunStatus, setSoftwareRunStatus] = useState<SoftwareRunStatus>('idle')
+  const [softwareRunSummary, setSoftwareRunSummary] = useState<SoftwareCenterRunSummary | null>(null)
 
   const displayAccounts = portfolioProjection.accounts
   const displaySignals = portfolioProjection.materialSignals
@@ -195,16 +203,7 @@ function App() {
     let mounted = true
 
     async function loadRuntimeState() {
-      setSoftwareRunStatus('running')
-      try {
-        const result = await refreshWorkspaceState()
-        if (!mounted) return
-
-        applyWorkspaceRefresh(result)
-        setSoftwareRunStatus('success')
-      } catch {
-        if (mounted) setSoftwareRunStatus('failed')
-      }
+      await runLoggedWorkspaceRefresh('startup', () => mounted)
     }
 
     loadRuntimeState()
@@ -354,12 +353,29 @@ function App() {
   }
 
   async function handleRefreshWorkspace() {
+    await runLoggedWorkspaceRefresh('manual')
+  }
+
+  async function runLoggedWorkspaceRefresh(
+    trigger: SoftwareCenterRunTrigger,
+    shouldApply: () => boolean = () => true,
+  ) {
+    const startedAt = new Date().toISOString()
     setSoftwareRunStatus('running')
+
     try {
       const result = await refreshWorkspaceState()
+      if (!shouldApply()) return
+
       applyWorkspaceRefresh(result)
+      await softwareCenterRepository.saveRun(buildSoftwareCenterRun(trigger, 'success', startedAt, result))
+      setSoftwareRunSummary(await softwareCenterRepository.getSummary())
       setSoftwareRunStatus('success')
-    } catch {
+    } catch (error) {
+      await softwareCenterRepository.saveRun(
+        buildSoftwareCenterRun(trigger, 'failed', startedAt, undefined, error),
+      )
+      setSoftwareRunSummary(await softwareCenterRepository.getSummary())
       setSoftwareRunStatus('failed')
     }
   }
@@ -446,7 +462,10 @@ function App() {
           <div className="software-toolbar">
             <div>
               <strong>全链路刷新：{formatSoftwareRunStatus(softwareRunStatus)}</strong>
-              <span>授权、报表、余额、诊断、操作预览、通知日志统一更新</span>
+              <span>
+                最近 {softwareRunSummary?.lastRun?.status ?? 'none'} / 耗时 {formatDuration(softwareRunSummary?.lastRun?.durationMs)}
+                {' '} / 失败 {softwareRunSummary?.failed ?? 0}
+              </span>
             </div>
             <button
               className="primary-button"
@@ -598,6 +617,7 @@ function App() {
           <span>配置来源：{runtimeConfig.source}</span>
           <span>数据源：{oceanEngineDataSource}</span>
           <span>指标来源：{projectionSourceLabel}</span>
+          <span>软件运行：{softwareRunSummary?.total ?? 0} 次 / 失败 {softwareRunSummary?.failed ?? 0}</span>
           <span>授权账号：{authStatus?.authorizedAdvertiserCount ?? apiProbe.advertiserCount}</span>
           <span>账号库同步：{advertiserSummary?.lastRun?.status ?? 'idle'}</span>
           <span>余额同步：{fundSummary?.lastRun?.status ?? 'idle'}</span>
@@ -678,6 +698,48 @@ function formatSoftwareRunStatus(status: SoftwareRunStatus): string {
   }
 
   return labels[status]
+}
+
+function buildSoftwareCenterRun(
+  trigger: SoftwareCenterRunTrigger,
+  status: SoftwareCenterRun['status'],
+  startedAt: string,
+  result?: WorkspaceRefreshResult,
+  error?: unknown,
+): SoftwareCenterRun {
+  const finishedAt = new Date().toISOString()
+  const diagnostics = result ? evaluatePortfolioDiagnostics(result.projection.accounts, result.projection.materialSignals) : null
+  const recommendations = result ? result.projection.accounts.flatMap((account) => evaluateAccount(account)) : []
+  const operationQueue = buildOperationQueue(recommendations)
+
+  return {
+    id: `software-run-${startedAt}-${trigger}`,
+    trigger,
+    status,
+    startedAt,
+    finishedAt,
+    durationMs: new Date(finishedAt).getTime() - new Date(startedAt).getTime(),
+    dataSource: oceanEngineDataSource,
+    metricSource: result?.projection.source ?? 'mock',
+    counts: {
+      advertisers: result?.advertiserSync.storedAdvertiserCount ?? 0,
+      reportRows: result?.syncSummary.lastRun?.rowCount ?? 0,
+      fundRows: result?.fundSummary.storedBalanceCount ?? 0,
+      diagnostics: diagnostics?.diagnostics.length ?? 0,
+      materialSignals: result?.projection.materialSignals.length ?? 0,
+      notificationDrafts: result
+        ? buildNotificationQueue(result.projection.materialSignals, ownerRoutes).drafts.length
+        : 0,
+      operationPlans: operationQueue.plans.length,
+    },
+    error: error instanceof Error ? error.message : error ? String(error) : undefined,
+  }
+}
+
+function formatDuration(ms?: number): string {
+  if (ms === undefined) return '--'
+  if (ms < 1000) return `${ms}ms`
+  return `${(ms / 1000).toFixed(1)}s`
 }
 
 interface AuthorizedAdvertiserListProps {
