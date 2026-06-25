@@ -13,11 +13,15 @@ import {
   Sparkles,
   Wallet,
 } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import './App.css'
 import { buildMaterialSignalNotification } from './domain/feishu'
-import { evaluatePortfolioDiagnostics, formatMoney } from './domain/roiEngine'
-import { accounts, materialSignals, ownerRoutes, recommendations } from './data/mockDashboard'
+import { evaluateAccount, evaluatePortfolioDiagnostics, formatMoney } from './domain/roiEngine'
+import {
+  accounts as fallbackAccounts,
+  materialSignals as fallbackMaterialSignals,
+  ownerRoutes,
+} from './data/mockDashboard'
 import type { AuthorizedAdvertiserRecord, AuthorizedAdvertiserSummary } from './domain/advertiserSync'
 import type { OceanEngineAuthStatus } from './domain/oceanEngine'
 import type { OperationAuditSummary } from './domain/operationAudit'
@@ -32,6 +36,7 @@ import { createLocalStorageOperationAuditRepository } from './services/operation
 import { createOperationExecutionService } from './services/operationExecutionService'
 import { attributeMaterials } from './services/materialAttributionService'
 import { createLocalStorageMetricRepository } from './services/metricRepository'
+import { buildPortfolioProjection } from './services/portfolioProjectionService'
 import { createReportSyncService } from './services/reportSyncService'
 import {
   getBrowserRuntimeConfigStatus,
@@ -39,22 +44,6 @@ import {
   type RuntimeConfigStatus,
 } from './services/runtimeConfig'
 
-const topAccounts = [...accounts].sort((a, b) => b.metrics.roi - a.metrics.roi)
-const heroSignal = materialSignals[0]
-const notificationDraft = buildMaterialSignalNotification(heroSignal)
-const notificationQueue = buildNotificationQueue(materialSignals, ownerRoutes)
-const operationQueue = buildOperationQueue(recommendations)
-const portfolioDiagnostics = evaluatePortfolioDiagnostics(accounts, materialSignals)
-const ownerRoutingResults = resolveOwnerRoutes(materialSignals, ownerRoutes)
-const materialAttributionSummary = attributeMaterials(
-  materialSignals.map((signal) => ({
-    id: signal.id,
-    accountId: signal.accountId,
-    materialName: signal.materialName,
-    metrics: signal.metrics,
-    ownerName: signal.owner.name,
-  })),
-)
 const electronOceanEngineClient = createElectronOceanEngineClient()
 const oceanEngineClient = electronOceanEngineClient ?? createMockOceanEngineClient()
 const oceanEngineDataSource = electronOceanEngineClient ? 'electron-readonly' : 'mock-browser'
@@ -69,23 +58,52 @@ const metricRepository = createLocalStorageMetricRepository()
 const reportSyncService = createReportSyncService(oceanEngineClient, metricRepository)
 const operationAuditRepository = createLocalStorageOperationAuditRepository()
 const operationExecutionService = createOperationExecutionService(operationAuditRepository)
-const totalSpend = accounts.reduce((sum, account) => sum + account.metrics.spend, 0)
-const totalRevenue = accounts.reduce((sum, account) => sum + account.metrics.revenue, 0)
-const blendedRoi = totalRevenue / totalSpend
 
 function App() {
   const [runtimeConfig, setRuntimeConfig] = useState<RuntimeConfigStatus>(getBrowserRuntimeConfigStatus)
   const [authStatus, setAuthStatus] = useState<OceanEngineAuthStatus | null>(null)
   const [apiProbe, setApiProbe] = useState({ advertiserCount: 0, reportRows: 0, fundRows: 0 })
   const [advertiserSummary, setAdvertiserSummary] = useState<AuthorizedAdvertiserSummary | null>(null)
+  const [portfolioProjection, setPortfolioProjection] = useState(() =>
+    buildPortfolioProjection([], [], fallbackAccounts, fallbackMaterialSignals),
+  )
   const [reportSyncSummary, setReportSyncSummary] = useState<ReportSyncSummary | null>(null)
   const [operationAuditSummary, setOperationAuditSummary] = useState<OperationAuditSummary | null>(null)
+
+  const displayAccounts = portfolioProjection.accounts
+  const displaySignals = portfolioProjection.materialSignals
+  const topAccounts = useMemo(
+    () => [...displayAccounts].sort((a, b) => b.metrics.roi - a.metrics.roi),
+    [displayAccounts],
+  )
+  const recommendations = useMemo(
+    () => displayAccounts.flatMap((account) => evaluateAccount(account)),
+    [displayAccounts],
+  )
+  const notificationDraft = buildMaterialSignalNotification(displaySignals[0] ?? fallbackMaterialSignals[0])
+  const notificationQueue = buildNotificationQueue(displaySignals, ownerRoutes)
+  const operationQueue = useMemo(() => buildOperationQueue(recommendations), [recommendations])
+  const portfolioDiagnostics = evaluatePortfolioDiagnostics(displayAccounts, displaySignals)
+  const ownerRoutingResults = resolveOwnerRoutes(displaySignals, ownerRoutes)
+  const materialAttributionSummary = attributeMaterials(
+    displaySignals.map((signal) => ({
+      id: signal.id,
+      accountId: signal.accountId,
+      materialName: signal.materialName,
+      metrics: signal.metrics,
+      ownerName: signal.owner.name,
+    })),
+  )
+  const totalSpend = displayAccounts.reduce((sum, account) => sum + account.metrics.spend, 0)
+  const totalRevenue = displayAccounts.reduce((sum, account) => sum + account.metrics.revenue, 0)
+  const blendedRoi = totalSpend > 0 ? totalRevenue / totalSpend : 0
+  const projectionSourceLabel = portfolioProjection.source === 'metric-facts' ? '本地事实库' : '演示数据'
 
   useEffect(() => {
     let mounted = true
 
     async function loadRuntimeState() {
-      const [config, auth, advertiserSync, syncSummary, fundRows, auditSummary] = await Promise.all([
+      const [config, auth, advertiserSync] = await Promise.all([
         loadRuntimeConfigStatus(),
         safeRead(oceanEngineClient.getAuthStatus(), {
           hasAccessToken: false,
@@ -93,10 +111,22 @@ function App() {
           authorizedAdvertiserCount: 0,
         }),
         advertiserSyncService.runOnce(),
-        runReportSync(),
-        safeRead(oceanEngineClient.getFundBalances(accounts.map((account) => account.id)), []),
-        operationExecutionService.previewPlans(operationQueue.plans),
       ])
+      const advertiserIds = resolveSyncAdvertiserIds(advertiserSync.advertisers)
+      const [syncSummary, fundRows] = await Promise.all([
+        runReportSync(advertiserIds),
+        safeRead(oceanEngineClient.getFundBalances(advertiserIds), []),
+      ])
+      const facts = await metricRepository.listFacts()
+      const nextProjection = buildPortfolioProjection(
+        facts,
+        advertiserSync.advertisers,
+        fallbackAccounts,
+        fallbackMaterialSignals,
+      )
+      const nextRecommendations = nextProjection.accounts.flatMap((account) => evaluateAccount(account))
+      const nextOperationQueue = buildOperationQueue(nextRecommendations)
+      const auditSummary = await operationExecutionService.previewPlans(nextOperationQueue.plans)
 
       if (!mounted) return
 
@@ -108,6 +138,7 @@ function App() {
       setRuntimeConfig(config)
       setAuthStatus(normalizedAuth)
       setAdvertiserSummary(advertiserSync)
+      setPortfolioProjection(nextProjection)
       setApiProbe({
         advertiserCount: advertiserSync.storedAdvertiserCount,
         reportRows: syncSummary.lastRun?.rowCount ?? 0,
@@ -124,11 +155,11 @@ function App() {
     }
   }, [])
 
-  async function runReportSync() {
+  async function runReportSync(advertiserIds = resolveSyncAdvertiserIds(advertiserSummary?.advertisers)) {
     return reportSyncService.runOnce({
-      advertiserIds: accounts.map((account) => account.id),
-      startDate: '2026-06-25',
-      endDate: '2026-06-25',
+      advertiserIds,
+      startDate: todayIsoDate(),
+      endDate: todayIsoDate(),
       dimensions: ['advertiser', 'material'],
       metrics: ['cost', 'show', 'click', 'convert', 'income', 'roi'],
     })
@@ -136,6 +167,15 @@ function App() {
 
   async function handleSyncReports() {
     const summary = await runReportSync()
+    const facts = await metricRepository.listFacts()
+    setPortfolioProjection(
+      buildPortfolioProjection(
+        facts,
+        advertiserSummary?.advertisers ?? [],
+        fallbackAccounts,
+        fallbackMaterialSignals,
+      ),
+    )
     setReportSyncSummary(summary)
     setApiProbe((current) => ({
       ...current,
@@ -145,7 +185,9 @@ function App() {
 
   async function handleSyncAdvertisers() {
     const summary = await advertiserSyncService.runOnce()
+    const facts = await metricRepository.listFacts()
     setAdvertiserSummary(summary)
+    setPortfolioProjection(buildPortfolioProjection(facts, summary.advertisers, fallbackAccounts, fallbackMaterialSignals))
     setAuthStatus((current) =>
       current
         ? {
@@ -224,8 +266,8 @@ function App() {
         </header>
 
         <section className="metric-grid" id="dashboard">
-          <MetricCard label="今日消耗" value={formatMoney(totalSpend)} delta="+12.4%" tone="neutral" />
-          <MetricCard label="今日收入" value={formatMoney(totalRevenue)} delta="+21.8%" tone="good" />
+          <MetricCard label="今日消耗" value={formatMoney(totalSpend)} delta={projectionSourceLabel} tone="neutral" />
+          <MetricCard label="今日收入" value={formatMoney(totalRevenue)} delta={projectionSourceLabel} tone="good" />
           <MetricCard label="综合 ROI" value={blendedRoi.toFixed(2)} delta="目标 1.25" tone="good" />
           <MetricCard label="诊断事项" value={`${portfolioDiagnostics.diagnostics.length}`} delta={`P0 ${portfolioDiagnostics.p0Count}`} tone="neutral" />
         </section>
@@ -289,7 +331,7 @@ function App() {
           <div className="panel" id="materials">
             <PanelTitle icon={<Sparkles size={18} />} title="素材小说名信号" subtitle="从表现好的素材名中提取小说名并路由负责人" />
             <div className="signal-grid">
-              {materialSignals.map((signal) => (
+              {displaySignals.map((signal) => (
                 <article className="signal-card" key={signal.id}>
                   <div className="signal-top">
                     <span>{signal.hookType}</span>
@@ -342,6 +384,7 @@ function App() {
           <span>{runtimeConfig.hasFeishuWebhook ? '飞书 Webhook 已配置' : '飞书 Webhook 待配置'}</span>
           <span>配置来源：{runtimeConfig.source}</span>
           <span>数据源：{oceanEngineDataSource}</span>
+          <span>指标来源：{projectionSourceLabel}</span>
           <span>授权账号：{authStatus?.authorizedAdvertiserCount ?? apiProbe.advertiserCount}</span>
           <span>账号库同步：{advertiserSummary?.lastRun?.status ?? 'idle'}</span>
           <span>报表探针：{apiProbe.reportRows} 行 / 余额 {apiProbe.fundRows} 行</span>
@@ -365,6 +408,17 @@ async function safeRead<T>(promise: Promise<T>, fallback: T): Promise<T> {
   } catch {
     return fallback
   }
+}
+
+function resolveSyncAdvertiserIds(advertisers: AuthorizedAdvertiserRecord[] = []): string[] {
+  const advertiserIds = advertisers.map((advertiser) => advertiser.advertiserId).filter(Boolean)
+  return advertiserIds.length ? advertiserIds : fallbackAccounts.map((account) => account.id)
+}
+
+function todayIsoDate(): string {
+  const now = new Date()
+  const localTime = new Date(now.getTime() - now.getTimezoneOffset() * 60_000)
+  return localTime.toISOString().slice(0, 10)
 }
 
 interface AuthorizedAdvertiserListProps {
