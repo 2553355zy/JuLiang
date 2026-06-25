@@ -15,6 +15,12 @@ Build a second-generation desktop/web product for comprehensive OceanEngine acco
 - creative performance mining, including extracting novel names from successful material names
 - Feishu notifications to the responsible person for each account or material owner
 
+## Scope Control
+
+Keep the V2 product focused on simple, clear OceanEngine account analysis and account operations. The core product should help users quickly understand account performance, identify ROI problems or scaling opportunities, and safely prepare account-level actions.
+
+Do not keep expanding into broad, low-value features. Treat extended integrations, advanced automation, and non-essential workflow tooling as later work unless they directly support the core OceanEngine account analysis and operation loop.
+
 ## Security Rules
 
 - Never commit or package real `access_token`, `refresh_token`, app `secret`, webhook URL, Feishu app secret, or account credentials.
@@ -51,4 +57,3 @@ The V2 product should analyze:
 - Keep product plans and research in `docs/`.
 - Keep implementation decisions that are hard to reverse in `docs/adr/`.
 - Keep workflow packaging candidates in docs first; create a skill, plugin, or automation only when the repeated workflow is clear and high confidence.
-
