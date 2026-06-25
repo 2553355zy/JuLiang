@@ -75,6 +75,7 @@ export function evaluateAccount(
         targetType: 'account',
         targetId: account.id,
         targetName: account.name,
+        stateHint: buildAccountStateHint(account),
         action: '预算上调 15%',
         reason: 'ROI 和转化样本量同时达标',
         risk: 'medium',
@@ -96,6 +97,7 @@ export function evaluateAccount(
         targetType: 'account',
         targetId: account.id,
         targetName: account.name,
+        stateHint: buildAccountStateHint(account),
         action: '暂停高成本单元',
         reason: '消耗已过样本线且 ROI 未达标',
         risk: 'high',
@@ -195,4 +197,13 @@ export function evaluatePortfolioDiagnostics(
 
 export function formatMoney(value: number): string {
   return `¥${Math.round(value).toLocaleString('zh-CN')}`
+}
+
+function buildAccountStateHint(account: DeliveryAccount) {
+  return {
+    budget: account.dailyBudget,
+    status: 'running' as const,
+    source: 'projection' as const,
+    capturedAt: new Date().toISOString(),
+  }
 }

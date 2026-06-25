@@ -66,6 +66,9 @@ export function validateLiveOperationAdapterRequest(
       if (request.params.percent > 50) {
         errors.push('单次预算调整比例不能超过 50%')
       }
+      if (request.verification.before.budget === undefined) {
+        errors.push('预算操作缺少操作前预算快照')
+      }
       if (!request.verification.verifyFields.includes('budget')) {
         errors.push('预算操作必须验证 budget 字段')
       }
@@ -77,6 +80,9 @@ export function validateLiveOperationAdapterRequest(
   }
   if (['pause', 'resume', 'close'].includes(request.operationType) && !request.verification.verifyFields.includes('status')) {
     errors.push('状态操作必须验证 status 字段')
+  }
+  if (['pause', 'resume', 'close'].includes(request.operationType) && !request.verification.before.status) {
+    errors.push('状态操作缺少操作前状态快照')
   }
 
   return {

@@ -8,7 +8,7 @@ export interface OperationStateSnapshot {
   capturedAt: string
   budget?: number
   status?: 'running' | 'paused' | 'closed' | 'unknown'
-  source: 'unavailable' | 'mock' | 'oceanengine'
+  source: 'unavailable' | 'projection' | 'mock' | 'oceanengine'
 }
 
 export interface OperationExpectedChange {
@@ -117,14 +117,17 @@ export function inferLiveOperationParams(plan: OperationPlan): LiveOperationPara
 
 export function buildOperationVerificationPlan(plan: OperationPlan): OperationVerificationPlan {
   const params = inferLiveOperationParams(plan)
-  const before = buildUnavailableSnapshot()
+  const before = buildStateSnapshot(plan)
 
   if (params.operationType === 'adjust_budget') {
+    const nextBudget = calculateNextBudget(before.budget, params.direction, params.percent)
     return {
       before,
       expectedChanges: [
         {
           field: 'budget',
+          from: before.budget,
+          to: nextBudget,
           description: `预算${params.direction === 'increase' ? '上调' : '下调'} ${params.percent}%`,
         },
       ],
@@ -156,6 +159,27 @@ function buildUnavailableSnapshot(): OperationStateSnapshot {
     capturedAt: new Date().toISOString(),
     source: 'unavailable',
   }
+}
+
+function buildStateSnapshot(plan: OperationPlan): OperationStateSnapshot {
+  if (!plan.stateHint) return buildUnavailableSnapshot()
+
+  return {
+    capturedAt: plan.stateHint.capturedAt ?? new Date().toISOString(),
+    budget: plan.stateHint.budget,
+    status: plan.stateHint.status,
+    source: plan.stateHint.source,
+  }
+}
+
+function calculateNextBudget(
+  currentBudget: number | undefined,
+  direction: BudgetAdjustmentDirection,
+  percent: number,
+): number | undefined {
+  if (currentBudget === undefined || !Number.isFinite(currentBudget)) return undefined
+  const multiplier = direction === 'increase' ? 1 + percent / 100 : 1 - percent / 100
+  return Math.round(currentBudget * multiplier)
 }
 
 function buildStatusVerificationPlan(

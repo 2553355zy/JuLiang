@@ -21,4 +21,4 @@
 
 ## Current Release State
 
-The current branch is a functional skeleton and UI integration build. Operation audit can persist through the Electron main process, and the live operation executor shell can validate gates, confirmation words, adapter request shape, idempotency keys, basic operation parameters, and before/after verification plans. The default operation adapter is `NoopOperationAdapter`, so real OceanEngine mutations still return `not_implemented` until database-backed audit/history, real operation adapters, account allowlists, and rollback checks are verified.
+The current branch is a functional skeleton and UI integration build. Operation audit can persist through the Electron main process, and the live operation executor shell can validate gates, confirmation words, adapter request shape, idempotency keys, basic operation parameters, projected before-state snapshots, and before/after verification plans. The default operation adapter is `NoopOperationAdapter`, so real OceanEngine mutations still return `not_implemented` until database-backed audit/history, real operation adapters, account allowlists, and rollback checks are verified.

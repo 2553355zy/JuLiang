@@ -60,10 +60,18 @@ export interface OperationPlan {
   targetType: 'account' | 'project' | 'promotion' | 'material'
   targetId: string
   targetName: string
+  stateHint?: OperationTargetStateHint
   action: string
   reason: string
   risk: OperationRisk
   requiresConfirmation: boolean
+}
+
+export interface OperationTargetStateHint {
+  budget?: number
+  status?: 'running' | 'paused' | 'closed' | 'unknown'
+  source: 'projection' | 'unavailable'
+  capturedAt?: string
 }
 
 export interface RoiRecommendation {
