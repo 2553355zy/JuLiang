@@ -2,6 +2,9 @@ const path = require('node:path')
 const { app, BrowserWindow, ipcMain, shell } = require('electron')
 
 const isDev = Boolean(process.env.VITE_DEV_SERVER_URL)
+const executionMode = process.env.JULIANG_EXECUTION_MODE || 'readonly'
+
+app.setName('JuLiang V2')
 
 function createMainWindow() {
   const mainWindow = new BrowserWindow({
@@ -44,6 +47,16 @@ ipcMain.handle('runtime:getInfo', () => ({
   mode: isDev ? 'development' : 'production',
 }))
 
+ipcMain.handle('runtime:getConfigStatus', () => ({
+  oceanEngineBaseUrl: process.env.OCEANENGINE_BASE_URL || 'https://api.oceanengine.com',
+  hasOceanEngineClient: Boolean(process.env.OCEANENGINE_CLIENT_ID && process.env.OCEANENGINE_CLIENT_SECRET),
+  hasOceanEngineAccessToken: Boolean(process.env.OCEANENGINE_ACCESS_TOKEN),
+  hasOceanEngineRefreshToken: Boolean(process.env.OCEANENGINE_REFRESH_TOKEN),
+  hasFeishuWebhook: Boolean(process.env.FEISHU_WEBHOOK_URL),
+  executionMode: ['readonly', 'preview', 'live'].includes(executionMode) ? executionMode : 'readonly',
+  source: 'electron-main',
+}))
+
 app.whenReady().then(() => {
   createMainWindow()
 
@@ -59,4 +72,3 @@ app.on('window-all-closed', () => {
     app.quit()
   }
 })
-

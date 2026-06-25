@@ -13,26 +13,73 @@ import {
   Sparkles,
   Wallet,
 } from 'lucide-react'
+import { useEffect, useState } from 'react'
 import './App.css'
 import { buildMaterialSignalNotification } from './domain/feishu'
 import { formatMoney } from './domain/roiEngine'
 import { accounts, materialSignals, recommendations } from './data/mockDashboard'
+import type { OceanEngineAuthStatus } from './domain/oceanEngine'
 import { buildNotificationQueue } from './services/notificationRouter'
+import { createMockOceanEngineClient } from './services/oceanEngineClient'
 import { buildOperationQueue } from './services/operationPlanner'
-import { getRuntimeConfigStatus } from './services/runtimeConfig'
+import {
+  getBrowserRuntimeConfigStatus,
+  loadRuntimeConfigStatus,
+  type RuntimeConfigStatus,
+} from './services/runtimeConfig'
 
 const topAccounts = [...accounts].sort((a, b) => b.metrics.roi - a.metrics.roi)
 const heroSignal = materialSignals[0]
 const notificationDraft = buildMaterialSignalNotification(heroSignal)
 const notificationQueue = buildNotificationQueue(materialSignals)
 const operationQueue = buildOperationQueue(recommendations)
-const runtimeConfig = getRuntimeConfigStatus()
+const oceanEngineClient = createMockOceanEngineClient()
 const totalSpend = accounts.reduce((sum, account) => sum + account.metrics.spend, 0)
 const totalRevenue = accounts.reduce((sum, account) => sum + account.metrics.revenue, 0)
 const totalProfit = totalRevenue - totalSpend
 const blendedRoi = totalRevenue / totalSpend
 
 function App() {
+  const [runtimeConfig, setRuntimeConfig] = useState<RuntimeConfigStatus>(getBrowserRuntimeConfigStatus)
+  const [authStatus, setAuthStatus] = useState<OceanEngineAuthStatus | null>(null)
+  const [apiProbe, setApiProbe] = useState({ advertiserCount: 0, reportRows: 0, fundRows: 0 })
+
+  useEffect(() => {
+    let mounted = true
+
+    async function loadRuntimeState() {
+      const [config, auth, advertisers, reportRows, fundRows] = await Promise.all([
+        loadRuntimeConfigStatus(),
+        oceanEngineClient.getAuthStatus(),
+        oceanEngineClient.listAuthorizedAdvertisers(),
+        oceanEngineClient.queryReport({
+          advertiserIds: accounts.map((account) => account.id),
+          startDate: '2026-06-25',
+          endDate: '2026-06-25',
+          dimensions: ['advertiser', 'material'],
+          metrics: ['cost', 'show', 'click', 'convert', 'income', 'roi'],
+        }),
+        oceanEngineClient.getFundBalances(accounts.map((account) => account.id)),
+      ])
+
+      if (!mounted) return
+
+      setRuntimeConfig(config)
+      setAuthStatus(auth)
+      setApiProbe({
+        advertiserCount: advertisers.length,
+        reportRows: reportRows.length,
+        fundRows: fundRows.length,
+      })
+    }
+
+    loadRuntimeState()
+
+    return () => {
+      mounted = false
+    }
+  }, [])
+
   return (
     <div className="shell">
       <aside className="sidebar">
@@ -200,6 +247,9 @@ function App() {
           <span>飞书通知草稿 {notificationQueue.drafts.length} 条</span>
           <span>需立即跟进 {notificationQueue.actionCount} 条</span>
           <span>{runtimeConfig.hasFeishuWebhook ? '飞书 Webhook 已配置' : '飞书 Webhook 待配置'}</span>
+          <span>配置来源：{runtimeConfig.source}</span>
+          <span>授权账号：{authStatus?.authorizedAdvertiserCount ?? apiProbe.advertiserCount}</span>
+          <span>报表探针：{apiProbe.reportRows} 行 / 余额 {apiProbe.fundRows} 行</span>
         </section>
       </main>
     </div>
