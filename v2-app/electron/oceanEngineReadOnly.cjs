@@ -87,6 +87,32 @@ async function getFundBalances(advertiserIds) {
   })).filter((item) => item.advertiserId)
 }
 
+async function getAdvertiserBudget(advertiserId) {
+  if (!hasAccessToken() || !advertiserId) return null
+
+  const response = await oceanEngineGet('/open_api/2/advertiser/budget/get/', {
+    advertiser_id: advertiserId,
+    fields: JSON.stringify(['budget']),
+  })
+  const data = response.data || {}
+  const items = arrayFrom(data.list, data.advertiser_budget_list, data.budget_list, data)
+  const item = items.find((candidate) =>
+    stringFrom(candidate.advertiser_id, candidate.advertiserId, candidate.id) === advertiserId,
+  ) || items[0] || data
+  const budget = optionalBudgetNumberFrom(
+    item.budget,
+    item.daily_budget,
+    item.day_budget,
+    item.budget_value,
+    item.advertiser_budget,
+  )
+
+  return {
+    advertiserId,
+    budget,
+  }
+}
+
 async function oceanEngineGet(endpoint, params) {
   const config = getRuntimeConfig()
   const url = new URL(endpoint, `${config.baseUrl}/`)
@@ -189,9 +215,24 @@ function optionalNumberFrom(...values) {
   return undefined
 }
 
+function optionalBudgetNumberFrom(...values) {
+  for (const value of values) {
+    if (value && typeof value === 'object') {
+      const nested = optionalNumberFrom(value.value, value.amount, value.daily_budget, value.day_budget)
+      if (nested !== undefined) return nested
+    }
+
+    const parsed = optionalNumberFrom(value)
+    if (parsed !== undefined) return parsed
+  }
+  return undefined
+}
+
 module.exports = {
   getAuthStatus,
+  getAdvertiserBudget,
   getFundBalances,
+  hasAccessToken,
   listAuthorizedAdvertisers,
   queryReport,
 }

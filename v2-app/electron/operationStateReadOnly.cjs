@@ -1,3 +1,5 @@
+const oceanEngineReadOnly = require('./oceanEngineReadOnly.cjs')
+
 async function getAccountState(accountId) {
   const normalizedAccountId = normalizeAccountId(accountId)
   if (!normalizedAccountId) {
@@ -8,11 +10,40 @@ async function getAccountState(accountId) {
     }
   }
 
-  return {
-    source: 'not_configured',
-    capturedAt: new Date().toISOString(),
-    accountId: normalizedAccountId,
-    error: 'OceanEngine account state reader is not configured',
+  if (!oceanEngineReadOnly.hasAccessToken()) {
+    return {
+      source: 'not_configured',
+      capturedAt: new Date().toISOString(),
+      accountId: normalizedAccountId,
+      error: 'OCEANENGINE_ACCESS_TOKEN is not configured',
+    }
+  }
+
+  try {
+    const budgetState = await oceanEngineReadOnly.getAdvertiserBudget(normalizedAccountId)
+    if (budgetState?.budget === undefined) {
+      return {
+        source: 'unavailable',
+        capturedAt: new Date().toISOString(),
+        accountId: normalizedAccountId,
+        error: 'OceanEngine budget response did not include a usable budget',
+      }
+    }
+
+    return {
+      source: 'oceanengine',
+      capturedAt: new Date().toISOString(),
+      accountId: normalizedAccountId,
+      budget: budgetState.budget,
+      status: 'unknown',
+    }
+  } catch (error) {
+    return {
+      source: 'unavailable',
+      capturedAt: new Date().toISOString(),
+      accountId: normalizedAccountId,
+      error: error instanceof Error ? error.message : 'OceanEngine account state request failed',
+    }
   }
 }
 
