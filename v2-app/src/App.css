@@ -245,6 +245,99 @@
   color: #c24133;
 }
 
+.software-center {
+  margin-bottom: 12px;
+}
+
+.software-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.software-module {
+  min-width: 0;
+  min-height: 132px;
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  gap: 10px;
+  border: 1px solid #e3e9f2;
+  border-radius: 8px;
+  background: #fbfcfe;
+  padding: 12px;
+  color: inherit;
+  text-decoration: none;
+}
+
+.software-module:hover {
+  border-color: #b9cdf5;
+  background: #f8fbff;
+}
+
+.software-module-icon {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  color: #1f66e5;
+  background: #edf4ff;
+}
+
+.software-module-head {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.software-module-head strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #111827;
+  font-size: 13px;
+}
+
+.software-module-head span {
+  flex: 0 0 auto;
+  border-radius: 999px;
+  background: #eef2f7;
+  color: #475467;
+  padding: 3px 7px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.software-module.ready .software-module-head span {
+  background: #ecfdf3;
+  color: #067647;
+}
+
+.software-module.later .software-module-head span {
+  background: #fff7ed;
+  color: #b54708;
+}
+
+.software-module p {
+  margin: 8px 0 10px;
+  color: #5d6676;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.software-module em {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #667085;
+  font-size: 11px;
+  font-style: normal;
+}
+
 .split-layout {
   display: grid;
   grid-template-columns: minmax(0, 1.42fr) minmax(360px, 0.78fr);
@@ -657,7 +750,7 @@
   }
 
   .nav-list {
-    grid-template-columns: repeat(5, minmax(0, 1fr));
+    grid-template-columns: repeat(6, minmax(0, 1fr));
   }
 
   .sidebar-panel {
@@ -668,6 +761,10 @@
   .split-layout,
   .split-layout.lower {
     grid-template-columns: 1fr;
+  }
+
+  .software-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .signal-grid {
@@ -694,6 +791,7 @@
   }
 
   .metric-grid,
+  .software-grid,
   .signal-grid {
     grid-template-columns: 1fr;
   }

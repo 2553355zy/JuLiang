@@ -2,13 +2,17 @@ import {
   Activity,
   AlertTriangle,
   Bell,
+  BookOpen,
   CircleDollarSign,
   ClipboardCheck,
+  Database,
   Gauge,
   LineChart,
   Megaphone,
   PlayCircle,
+  Route,
   Search,
+  Settings,
   ShieldCheck,
   Sparkles,
   Wallet,
@@ -111,6 +115,80 @@ function App() {
   const totalRevenue = displayAccounts.reduce((sum, account) => sum + account.metrics.revenue, 0)
   const blendedRoi = totalSpend > 0 ? totalRevenue / totalSpend : 0
   const projectionSourceLabel = portfolioProjection.source === 'metric-facts' ? '本地事实库' : '演示数据'
+  const softwareModules: SoftwareModule[] = [
+    {
+      id: 'config',
+      title: '授权与配置',
+      description: runtimeConfig.hasOceanEngineAccessToken ? '巨量只读接口已具备运行条件' : '等待配置巨量 access token',
+      status: runtimeConfig.hasOceanEngineAccessToken ? 'ready' : 'setup',
+      evidence: `${runtimeConfig.source} / ${runtimeConfig.executionMode}`,
+      href: '#accounts',
+      icon: <Settings size={18} />,
+    },
+    {
+      id: 'sync',
+      title: '数据同步中心',
+      description: '授权账号、报表事实、资金余额分仓同步',
+      status: reportSyncSummary?.lastRun?.status === 'success' ? 'ready' : 'setup',
+      evidence: `账号 ${apiProbe.advertiserCount} / 报表 ${apiProbe.reportRows} / 余额 ${apiProbe.fundRows}`,
+      href: '#dashboard',
+      icon: <Database size={18} />,
+    },
+    {
+      id: 'roi',
+      title: 'ROI 诊断中心',
+      description: '从本地事实库生成扩量、控量、低余额和回传诊断',
+      status: portfolioDiagnostics.diagnostics.length ? 'ready' : 'setup',
+      evidence: `诊断 ${portfolioDiagnostics.diagnostics.length} / P0 ${portfolioDiagnostics.p0Count}`,
+      href: '#accounts',
+      icon: <LineChart size={18} />,
+    },
+    {
+      id: 'materials',
+      title: '素材小说名中心',
+      description: '从高表现素材名提取小说名并保留负责人线索',
+      status: materialAttributionSummary.resolvedCount ? 'ready' : 'setup',
+      evidence: `识别 ${materialAttributionSummary.resolvedCount} / 待归类 ${materialAttributionSummary.reviewCount}`,
+      href: '#materials',
+      icon: <BookOpen size={18} />,
+    },
+    {
+      id: 'routing',
+      title: '负责人路由中心',
+      description: '按素材、小说名、账号路由飞书接收人',
+      status: ownerRoutingResults.length ? 'ready' : 'setup',
+      evidence: `路由 ${ownerRoutingResults.length} / 通知 ${notificationQueue.drafts.length}`,
+      href: '#feishu',
+      icon: <Route size={18} />,
+    },
+    {
+      id: 'notifications',
+      title: '通知与去重中心',
+      description: '飞书卡片预览、去重键、投递日志已形成闭环',
+      status: notificationDeliverySummary?.lastLog ? 'ready' : 'setup',
+      evidence: `${runtimeConfig.notificationMode} / ${notificationDeliverySummary?.lastLog?.status ?? 'idle'}`,
+      href: '#feishu',
+      icon: <Bell size={18} />,
+    },
+    {
+      id: 'operations',
+      title: '操作安全中心',
+      description: '预算和状态操作先进入预览、确认、审计',
+      status: operationAuditSummary?.total ? 'ready' : 'setup',
+      evidence: `审计 ${operationAuditSummary?.total ?? 0} / 阻断 ${operationAuditSummary?.blocked ?? 0}`,
+      href: '#operations',
+      icon: <ShieldCheck size={18} />,
+    },
+    {
+      id: 'extensions',
+      title: '扩展集成中心',
+      description: '飞书应用授权、更多平台和自动化策略作为后续扩展',
+      status: 'later',
+      evidence: '不阻塞当前骨架',
+      href: '#software',
+      icon: <Sparkles size={18} />,
+    },
+  ]
 
   useEffect(() => {
     let mounted = true
@@ -261,6 +339,9 @@ function App() {
           </div>
         </div>
         <nav className="nav-list" aria-label="主导航">
+          <a href="#software">
+            <Settings size={18} /> 软件中心
+          </a>
           <a className="active" href="#dashboard">
             <Gauge size={18} /> 总控台
           </a>
@@ -320,6 +401,25 @@ function App() {
           <MetricCard label="今日收入" value={formatMoney(totalRevenue)} delta={projectionSourceLabel} tone="good" />
           <MetricCard label="综合 ROI" value={blendedRoi.toFixed(2)} delta="目标 1.25" tone="good" />
           <MetricCard label="诊断事项" value={`${portfolioDiagnostics.diagnostics.length}`} delta={`P0 ${portfolioDiagnostics.p0Count}`} tone="neutral" />
+        </section>
+
+        <section className="panel software-center" id="software">
+          <PanelTitle icon={<Settings size={18} />} title="软件中心" subtitle="主体能力先闭环，延伸集成后续单独推进" />
+          <div className="software-grid">
+            {softwareModules.map((module) => (
+              <a className={`software-module ${module.status}`} href={module.href} key={module.id}>
+                <div className="software-module-icon">{module.icon}</div>
+                <div>
+                  <div className="software-module-head">
+                    <strong>{module.title}</strong>
+                    <span>{formatModuleStatus(module.status)}</span>
+                  </div>
+                  <p>{module.description}</p>
+                  <em>{module.evidence}</em>
+                </div>
+              </a>
+            ))}
+          </div>
         </section>
 
         <section className="split-layout">
@@ -480,6 +580,28 @@ function todayIsoDate(): string {
   const now = new Date()
   const localTime = new Date(now.getTime() - now.getTimezoneOffset() * 60_000)
   return localTime.toISOString().slice(0, 10)
+}
+
+type SoftwareModuleStatus = 'ready' | 'setup' | 'later'
+
+interface SoftwareModule {
+  id: string
+  title: string
+  description: string
+  status: SoftwareModuleStatus
+  evidence: string
+  href: string
+  icon: React.ReactNode
+}
+
+function formatModuleStatus(status: SoftwareModuleStatus): string {
+  const labels: Record<SoftwareModuleStatus, string> = {
+    ready: '已接入',
+    setup: '待配置',
+    later: '后续扩展',
+  }
+
+  return labels[status]
 }
 
 interface AuthorizedAdvertiserListProps {
