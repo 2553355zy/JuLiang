@@ -496,7 +496,8 @@
   margin-top: 2px;
 }
 
-.ghost-button.compact {
+.ghost-button.compact,
+.primary-button.compact {
   height: 32px;
   padding: 0 10px;
   font-size: 12px;
@@ -783,24 +784,114 @@
   color: #111827;
 }
 
+.operation-workbench {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+}
+
+.operation-plan-list {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
 .operation-row {
+  width: 100%;
   min-height: 36px;
+  border: 0;
   border-top: 1px solid #eef2f7;
+  background: transparent;
   color: #344054;
   font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+  padding: 0;
+}
+
+.operation-row.active {
+  color: #164eb8;
+  background: #f4f8ff;
 }
 
 .operation-row span {
   flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .operation-row strong {
   color: #111827;
+  white-space: nowrap;
 }
 
 .operation-row em {
   font-style: normal;
   color: #b54708;
+}
+
+.operation-empty {
+  border: 1px solid #eef2f7;
+  border-radius: 8px;
+  color: #667085;
+  padding: 12px;
+  font-size: 12px;
+}
+
+.operation-detail {
+  min-width: 0;
+  border: 1px solid #e3e9f2;
+  border-radius: 8px;
+  background: #fbfcfe;
+  padding: 12px;
+}
+
+.operation-detail div {
+  display: grid;
+  gap: 3px;
+  margin-bottom: 9px;
+}
+
+.operation-detail span,
+.operation-detail small {
+  color: #667085;
+  font-size: 11px;
+}
+
+.operation-detail strong {
+  color: #111827;
+  font-size: 13px;
+}
+
+.operation-detail p {
+  margin: 0 0 10px;
+  color: #344054;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.operation-detail label {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.operation-detail input {
+  height: 34px;
+  border: 1px solid #d9e0ea;
+  border-radius: 8px;
+  padding: 0 10px;
+  color: #172033;
+  font: inherit;
+}
+
+.operation-detail-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-bottom: 8px;
 }
 
 .queue-note {

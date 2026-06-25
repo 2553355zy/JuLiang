@@ -72,23 +72,66 @@ function buildMockReportRows(query: OceanEngineReportQuery): OceanEngineReportRo
     : mockAdvertisers.map((advertiser) => advertiser.advertiserId)
 
   return advertiserIds.map((advertiserId, index) => {
-    const cost = 2800 + index * 1600
-    const income = Math.round(cost * (1.42 - index * 0.22))
+    const profile = mockReportProfiles[advertiserId] ?? {
+      cost: 2800 + index * 1600,
+      incomeRate: 1.05,
+      convert: 58 + index * 12,
+      materialName: '待命名素材',
+    }
+    const cost = profile.cost
+    const income = Math.round(cost * profile.incomeRate)
     const advertiser = mockAdvertisers.find((item) => item.advertiserId === advertiserId)
 
     return {
       advertiserId,
       advertiserName: advertiser?.name ?? advertiserId,
-      materialId: `mat-${index + 1}`,
-      materialName: ['玄门医妃_EP18_打脸钩子_v3_周扬', '离婚后我成了首富_第36集_逆袭_剪2', '重生八零甜宠_12_复仇_v1'][index] ?? '待命名素材',
+      materialId: `mat-${advertiserId.slice(-3)}`,
+      materialName: profile.materialName,
       cost,
-      show: 180000 + index * 62000,
-      click: 4200 + index * 950,
-      convert: 88 + index * 31,
+      show: profile.show,
+      click: profile.click,
+      convert: profile.convert,
       income,
       roi: Number((income / cost).toFixed(2)),
     }
   })
+}
+
+const mockReportProfiles: Record<
+  string,
+  {
+    cost: number
+    incomeRate: number
+    convert: number
+    show: number
+    click: number
+    materialName: string
+  }
+> = {
+  '178928884001': {
+    cost: 12840,
+    incomeRate: 1.54,
+    convert: 286,
+    show: 920188,
+    click: 18402,
+    materialName: '玄门医妃_EP18_打脸钩子_v3_周扬',
+  },
+  '178928884002': {
+    cost: 7340,
+    incomeRate: 0.79,
+    convert: 96,
+    show: 581000,
+    click: 10260,
+    materialName: '重生八零甜宠_12_复仇_v1',
+  },
+  '178928884003': {
+    cost: 3120,
+    incomeRate: 0.59,
+    convert: 18,
+    show: 230400,
+    click: 3910,
+    materialName: '离婚后我成了首富_第36集_逆袭_剪2',
+  },
 }
 
 function buildMockFundBalances(advertiserIds: string[]): OceanEngineFundBalance[] {

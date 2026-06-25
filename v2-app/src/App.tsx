@@ -44,7 +44,7 @@ import { createElectronOceanEngineClient, createMockOceanEngineClient } from './
 import { resolveOwnerRoutes } from './services/ownerRoutingService'
 import { buildOperationQueue } from './services/operationPlanner'
 import { createLocalStorageOperationAuditRepository } from './services/operationAuditRepository'
-import { createOperationExecutionService } from './services/operationExecutionService'
+import { confirmationKeyword, createOperationExecutionService } from './services/operationExecutionService'
 import { attributeMaterials } from './services/materialAttributionService'
 import { createLocalStorageFundRepository } from './services/fundRepository'
 import { createFundSyncService } from './services/fundSyncService'
@@ -96,6 +96,8 @@ function App() {
   const [softwareRunStatus, setSoftwareRunStatus] = useState<SoftwareRunStatus>('idle')
   const [softwareRunSummary, setSoftwareRunSummary] = useState<SoftwareCenterRunSummary | null>(null)
   const [softwareRuns, setSoftwareRuns] = useState<SoftwareCenterRun[]>([])
+  const [selectedOperationId, setSelectedOperationId] = useState<string | null>(null)
+  const [operationConfirmationText, setOperationConfirmationText] = useState('')
 
   const displayAccounts = portfolioProjection.accounts
   const displaySignals = portfolioProjection.materialSignals
@@ -110,6 +112,9 @@ function App() {
   const notificationDraft = buildMaterialSignalNotification(displaySignals[0] ?? fallbackMaterialSignals[0])
   const notificationQueue = buildNotificationQueue(displaySignals, ownerRoutes)
   const operationQueue = useMemo(() => buildOperationQueue(recommendations), [recommendations])
+  const activeOperationPlan =
+    operationQueue.plans.find((plan) => plan.id === selectedOperationId) ?? operationQueue.plans[0]
+  const activeConfirmationKeyword = activeOperationPlan ? confirmationKeyword(activeOperationPlan) : ''
   const portfolioDiagnostics = evaluatePortfolioDiagnostics(displayAccounts, displaySignals)
   const ownerRoutingResults = resolveOwnerRoutes(displaySignals, ownerRoutes)
   const materialAttributionSummary = attributeMaterials(
@@ -351,6 +356,28 @@ function App() {
   async function handleDeliverNotification() {
     const summary = await notificationDeliveryService.deliver(notificationDraft)
     setNotificationDeliverySummary(summary)
+  }
+
+  async function handleConfirmOperationPlan() {
+    if (!activeOperationPlan) return
+
+    const summary = await operationExecutionService.confirmPlan(
+      activeOperationPlan,
+      operationConfirmationText,
+    )
+    setOperationAuditSummary(summary)
+    setOperationConfirmationText('')
+  }
+
+  async function handleBlockOperationPlan() {
+    if (!activeOperationPlan) return
+
+    const summary = await operationExecutionService.blockLiveExecution(
+      activeOperationPlan,
+      '用户在操作安全中心标记暂不执行，保留审计记录。',
+    )
+    setOperationAuditSummary(summary)
+    setOperationConfirmationText('')
   }
 
   async function handleRefreshWorkspace() {
@@ -623,17 +650,65 @@ function App() {
               </div>
             </div>
             <div className="operation-preview" id="operations">
-              <h3>待预览操作 · {operationQueue.plans.length} 条 · 高风险 {operationQueue.highRiskCount} 条</h3>
-              {operationQueue.plans.map((plan) => (
-                  <div className="operation-row" key={plan.id}>
-                    <CircleDollarSign size={16} />
-                    <span>{plan.targetName}</span>
-                    <strong>{plan.action}</strong>
-                    <em>{plan.risk}</em>
+              <h3>操作安全中心 · {operationQueue.plans.length} 条 · 高风险 {operationQueue.highRiskCount} 条</h3>
+              <div className="operation-workbench">
+                <div className="operation-plan-list">
+                  {operationQueue.plans.map((plan) => (
+                    <button
+                      className={`operation-row ${activeOperationPlan?.id === plan.id ? 'active' : ''}`}
+                      key={plan.id}
+                      type="button"
+                      onClick={() => {
+                        setSelectedOperationId(plan.id)
+                        setOperationConfirmationText('')
+                      }}
+                    >
+                      <CircleDollarSign size={16} />
+                      <span>{plan.targetName}</span>
+                      <strong>{plan.action}</strong>
+                      <em>{plan.risk}</em>
+                    </button>
+                  ))}
+                  {!operationQueue.plans.length ? (
+                    <div className="operation-empty">当前没有需要进入操作预览的账号任务。</div>
+                  ) : null}
+                </div>
+                {activeOperationPlan ? (
+                  <div className="operation-detail">
+                    <div>
+                      <span>目标</span>
+                      <strong>{activeOperationPlan.targetName}</strong>
+                    </div>
+                    <div>
+                      <span>建议动作</span>
+                      <strong>{activeOperationPlan.action}</strong>
+                    </div>
+                    <p>{activeOperationPlan.reason}</p>
+                    <label>
+                      <span>确认词：{activeConfirmationKeyword}</span>
+                      <input
+                        value={operationConfirmationText}
+                        onChange={(event) => setOperationConfirmationText(event.target.value)}
+                        placeholder="输入确认词后写入审计"
+                      />
+                    </label>
+                    <div className="operation-detail-actions">
+                      <button className="ghost-button compact" type="button" onClick={handleBlockOperationPlan}>
+                        标记暂不执行
+                      </button>
+                      <button className="primary-button compact" type="button" onClick={handleConfirmOperationPlan}>
+                        确认预案
+                      </button>
+                    </div>
+                    <small>
+                      真实执行保持关闭；这里只记录确认、阻断和预览审计，防止误操作账号预算或状态。
+                    </small>
                   </div>
-                ))}
+                ) : null}
+              </div>
               <p className="queue-note">
-                需要确认 {operationQueue.confirmationRequiredCount} 条；实时执行默认关闭。
+                需要确认 {operationQueue.confirmationRequiredCount} 条；最近审计：
+                {operationAuditSummary?.lastLog?.status ?? 'idle'}。
               </p>
             </div>
           </div>
