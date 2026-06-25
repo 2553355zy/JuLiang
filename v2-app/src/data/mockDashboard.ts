@@ -83,7 +83,7 @@ export const materialSignals: MaterialSignal[] = [
   buildSignal('mat-03', '178928884002', '重生八零甜宠_12_复仇_v1', owners[2], 1.18, 92),
 ]
 
-export const recommendations = accounts.flatMap(evaluateAccount)
+export const recommendations = accounts.flatMap((account) => evaluateAccount(account))
 
 function buildSignal(
   id: string,
@@ -120,4 +120,3 @@ function buildSignal(
     },
   }
 }
-

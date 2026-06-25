@@ -16,7 +16,7 @@ import {
 import { useEffect, useState } from 'react'
 import './App.css'
 import { buildMaterialSignalNotification } from './domain/feishu'
-import { formatMoney } from './domain/roiEngine'
+import { evaluatePortfolioDiagnostics, formatMoney } from './domain/roiEngine'
 import { accounts, materialSignals, recommendations } from './data/mockDashboard'
 import type { OceanEngineAuthStatus } from './domain/oceanEngine'
 import type { ReportSyncSummary } from './domain/reportSync'
@@ -36,12 +36,12 @@ const heroSignal = materialSignals[0]
 const notificationDraft = buildMaterialSignalNotification(heroSignal)
 const notificationQueue = buildNotificationQueue(materialSignals)
 const operationQueue = buildOperationQueue(recommendations)
+const portfolioDiagnostics = evaluatePortfolioDiagnostics(accounts, materialSignals)
 const oceanEngineClient = createMockOceanEngineClient()
 const metricRepository = createLocalStorageMetricRepository()
 const reportSyncService = createReportSyncService(oceanEngineClient, metricRepository)
 const totalSpend = accounts.reduce((sum, account) => sum + account.metrics.spend, 0)
 const totalRevenue = accounts.reduce((sum, account) => sum + account.metrics.revenue, 0)
-const totalProfit = totalRevenue - totalSpend
 const blendedRoi = totalRevenue / totalSpend
 
 function App() {
@@ -165,7 +165,7 @@ function App() {
           <MetricCard label="今日消耗" value={formatMoney(totalSpend)} delta="+12.4%" tone="neutral" />
           <MetricCard label="今日收入" value={formatMoney(totalRevenue)} delta="+21.8%" tone="good" />
           <MetricCard label="综合 ROI" value={blendedRoi.toFixed(2)} delta="目标 1.25" tone="good" />
-          <MetricCard label="预估利润" value={formatMoney(totalProfit)} delta="+36.2%" tone="good" />
+          <MetricCard label="诊断事项" value={`${portfolioDiagnostics.diagnostics.length}`} delta={`P0 ${portfolioDiagnostics.p0Count}`} tone="neutral" />
         </section>
 
         <section className="split-layout">
@@ -272,6 +272,9 @@ function App() {
           <span>报表探针：{apiProbe.reportRows} 行 / 余额 {apiProbe.fundRows} 行</span>
           <span>本地事实：{reportSyncSummary?.storedFactCount ?? 0} 条</span>
           <span>最近同步：{reportSyncSummary?.lastRun?.status ?? 'idle'}</span>
+          <span>扩量候选：{portfolioDiagnostics.scaleCandidateCount}</span>
+          <span>素材信号：{portfolioDiagnostics.materialSignalCount}</span>
+          <span>回传异常：{portfolioDiagnostics.trackingIssueCount}</span>
         </section>
       </main>
     </div>
