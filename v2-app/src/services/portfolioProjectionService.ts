@@ -1,4 +1,5 @@
 import type { AuthorizedAdvertiserRecord } from '../domain/advertiserSync'
+import type { FundBalanceRecord } from '../domain/fundSync'
 import { parseMaterialName } from '../domain/materialNameParser'
 import type { MetricFact } from '../domain/reportSync'
 import type { AccountOwner, AccountStatus, DeliveryAccount, MaterialSignal, PerformanceMetrics } from '../domain/types'
@@ -18,22 +19,25 @@ export interface PortfolioProjection {
 export function buildPortfolioProjection(
   facts: MetricFact[],
   advertisers: AuthorizedAdvertiserRecord[],
+  fundBalances: FundBalanceRecord[],
   fallbackAccounts: DeliveryAccount[],
   fallbackSignals: MaterialSignal[],
 ): PortfolioProjection {
+  const fundBalanceByAdvertiserId = new Map(fundBalances.map((balance) => [balance.advertiserId, balance]))
+
   if (!facts.length) {
     return {
-      accounts: fallbackAccounts,
+      accounts: applyFundBalancesToFallback(fallbackAccounts, fundBalanceByAdvertiserId),
       materialSignals: fallbackSignals,
       source: 'mock',
     }
   }
 
-  const accounts = buildAccounts(facts, advertisers, fallbackAccounts)
+  const accounts = buildAccounts(facts, advertisers, fundBalanceByAdvertiserId, fallbackAccounts)
   const materialSignals = buildMaterialSignals(facts, advertisers, fallbackSignals)
 
   return {
-    accounts: accounts.length ? accounts : fallbackAccounts,
+    accounts: accounts.length ? accounts : applyFundBalancesToFallback(fallbackAccounts, fundBalanceByAdvertiserId),
     materialSignals: materialSignals.length ? materialSignals : fallbackSignals,
     source: accounts.length ? 'metric-facts' : 'mock',
   }
@@ -42,6 +46,7 @@ export function buildPortfolioProjection(
 function buildAccounts(
   facts: MetricFact[],
   advertisers: AuthorizedAdvertiserRecord[],
+  fundBalanceByAdvertiserId: Map<string, FundBalanceRecord>,
   fallbackAccounts: DeliveryAccount[],
 ): DeliveryAccount[] {
   const advertiserById = new Map(advertisers.map((advertiser) => [advertiser.advertiserId, advertiser]))
@@ -52,13 +57,14 @@ function buildAccounts(
     .map(([advertiserId, rows]) => {
       const fallback = fallbackById.get(advertiserId)
       const advertiser = advertiserById.get(advertiserId)
+      const fundBalance = fundBalanceByAdvertiserId.get(advertiserId)
       const metrics = aggregateMetrics(rows)
       const status = resolveAccountStatus(metrics, fallback)
 
       return {
         id: advertiserId,
         name: advertiser?.name || rows.find((row) => row.advertiserName)?.advertiserName || fallback?.name || advertiserId,
-        balance: fallback?.balance ?? 0,
+        balance: fundBalance?.validBalance ?? fallback?.balance ?? 0,
         dailyBudget: fallback?.dailyBudget ?? Math.max(1000, Math.round(metrics.spend * 1.2)),
         owner: resolveOwner(advertiser, fallback),
         status,
@@ -68,6 +74,22 @@ function buildAccounts(
       } satisfies DeliveryAccount
     })
     .sort((a, b) => b.metrics.roi - a.metrics.roi)
+}
+
+function applyFundBalancesToFallback(
+  fallbackAccounts: DeliveryAccount[],
+  fundBalanceByAdvertiserId: Map<string, FundBalanceRecord>,
+): DeliveryAccount[] {
+  return fallbackAccounts.map((account) => {
+    const fundBalance = fundBalanceByAdvertiserId.get(account.id)
+    if (!fundBalance) return account
+
+    return {
+      ...account,
+      balance: fundBalance.validBalance,
+      updatedAt: formatTime(fundBalance.syncedAt),
+    }
+  })
 }
 
 function buildMaterialSignals(

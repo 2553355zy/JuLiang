@@ -16,6 +16,7 @@ import {
 import { useEffect, useMemo, useState } from 'react'
 import './App.css'
 import { buildMaterialSignalNotification } from './domain/feishu'
+import type { FundBalanceSummary } from './domain/fundSync'
 import { evaluateAccount, evaluatePortfolioDiagnostics, formatMoney } from './domain/roiEngine'
 import {
   accounts as fallbackAccounts,
@@ -35,6 +36,8 @@ import { buildOperationQueue } from './services/operationPlanner'
 import { createLocalStorageOperationAuditRepository } from './services/operationAuditRepository'
 import { createOperationExecutionService } from './services/operationExecutionService'
 import { attributeMaterials } from './services/materialAttributionService'
+import { createLocalStorageFundRepository } from './services/fundRepository'
+import { createFundSyncService } from './services/fundSyncService'
 import { createLocalStorageMetricRepository } from './services/metricRepository'
 import { buildPortfolioProjection } from './services/portfolioProjectionService'
 import { createReportSyncService } from './services/reportSyncService'
@@ -56,6 +59,8 @@ const advertiserSyncService = createAdvertiserSyncService(
 )
 const metricRepository = createLocalStorageMetricRepository()
 const reportSyncService = createReportSyncService(oceanEngineClient, metricRepository)
+const fundRepository = createLocalStorageFundRepository(advertiserSource)
+const fundSyncService = createFundSyncService(oceanEngineClient, fundRepository, advertiserSource)
 const operationAuditRepository = createLocalStorageOperationAuditRepository()
 const operationExecutionService = createOperationExecutionService(operationAuditRepository)
 
@@ -65,9 +70,10 @@ function App() {
   const [apiProbe, setApiProbe] = useState({ advertiserCount: 0, reportRows: 0, fundRows: 0 })
   const [advertiserSummary, setAdvertiserSummary] = useState<AuthorizedAdvertiserSummary | null>(null)
   const [portfolioProjection, setPortfolioProjection] = useState(() =>
-    buildPortfolioProjection([], [], fallbackAccounts, fallbackMaterialSignals),
+    buildPortfolioProjection([], [], [], fallbackAccounts, fallbackMaterialSignals),
   )
   const [reportSyncSummary, setReportSyncSummary] = useState<ReportSyncSummary | null>(null)
+  const [fundSummary, setFundSummary] = useState<FundBalanceSummary | null>(null)
   const [operationAuditSummary, setOperationAuditSummary] = useState<OperationAuditSummary | null>(null)
 
   const displayAccounts = portfolioProjection.accounts
@@ -113,14 +119,15 @@ function App() {
         advertiserSyncService.runOnce(),
       ])
       const advertiserIds = resolveSyncAdvertiserIds(advertiserSync.advertisers)
-      const [syncSummary, fundRows] = await Promise.all([
+      const [syncSummary, nextFundSummary] = await Promise.all([
         runReportSync(advertiserIds),
-        safeRead(oceanEngineClient.getFundBalances(advertiserIds), []),
+        fundSyncService.runOnce(advertiserIds),
       ])
       const facts = await metricRepository.listFacts()
       const nextProjection = buildPortfolioProjection(
         facts,
         advertiserSync.advertisers,
+        nextFundSummary.balances,
         fallbackAccounts,
         fallbackMaterialSignals,
       )
@@ -139,10 +146,11 @@ function App() {
       setAuthStatus(normalizedAuth)
       setAdvertiserSummary(advertiserSync)
       setPortfolioProjection(nextProjection)
+      setFundSummary(nextFundSummary)
       setApiProbe({
         advertiserCount: advertiserSync.storedAdvertiserCount,
         reportRows: syncSummary.lastRun?.rowCount ?? 0,
-        fundRows: fundRows.length,
+        fundRows: nextFundSummary.storedBalanceCount,
       })
       setReportSyncSummary(syncSummary)
       setOperationAuditSummary(auditSummary)
@@ -168,10 +176,12 @@ function App() {
   async function handleSyncReports() {
     const summary = await runReportSync()
     const facts = await metricRepository.listFacts()
+    const balances = await fundRepository.listBalances()
     setPortfolioProjection(
       buildPortfolioProjection(
         facts,
         advertiserSummary?.advertisers ?? [],
+        balances,
         fallbackAccounts,
         fallbackMaterialSignals,
       ),
@@ -186,8 +196,11 @@ function App() {
   async function handleSyncAdvertisers() {
     const summary = await advertiserSyncService.runOnce()
     const facts = await metricRepository.listFacts()
+    const balances = await fundRepository.listBalances()
     setAdvertiserSummary(summary)
-    setPortfolioProjection(buildPortfolioProjection(facts, summary.advertisers, fallbackAccounts, fallbackMaterialSignals))
+    setPortfolioProjection(
+      buildPortfolioProjection(facts, summary.advertisers, balances, fallbackAccounts, fallbackMaterialSignals),
+    )
     setAuthStatus((current) =>
       current
         ? {
@@ -199,6 +212,26 @@ function App() {
     setApiProbe((current) => ({
       ...current,
       advertiserCount: summary.storedAdvertiserCount,
+    }))
+  }
+
+  async function handleSyncFunds() {
+    const advertiserIds = resolveSyncAdvertiserIds(advertiserSummary?.advertisers)
+    const summary = await fundSyncService.runOnce(advertiserIds)
+    const facts = await metricRepository.listFacts()
+    setFundSummary(summary)
+    setPortfolioProjection(
+      buildPortfolioProjection(
+        facts,
+        advertiserSummary?.advertisers ?? [],
+        summary.balances,
+        fallbackAccounts,
+        fallbackMaterialSignals,
+      ),
+    )
+    setApiProbe((current) => ({
+      ...current,
+      fundRows: summary.storedBalanceCount,
     }))
   }
 
@@ -257,6 +290,10 @@ function App() {
             <button className="ghost-button" type="button" onClick={handleSyncReports}>
               <Activity size={16} />
               同步报表
+            </button>
+            <button className="ghost-button" type="button" onClick={handleSyncFunds}>
+              <Wallet size={16} />
+              同步余额
             </button>
             <button className="primary-button" type="button">
               <PlayCircle size={16} />
@@ -387,6 +424,7 @@ function App() {
           <span>指标来源：{projectionSourceLabel}</span>
           <span>授权账号：{authStatus?.authorizedAdvertiserCount ?? apiProbe.advertiserCount}</span>
           <span>账号库同步：{advertiserSummary?.lastRun?.status ?? 'idle'}</span>
+          <span>余额同步：{fundSummary?.lastRun?.status ?? 'idle'}</span>
           <span>报表探针：{apiProbe.reportRows} 行 / 余额 {apiProbe.fundRows} 行</span>
           <span>本地事实：{reportSyncSummary?.storedFactCount ?? 0} 条</span>
           <span>最近同步：{reportSyncSummary?.lastRun?.status ?? 'idle'}</span>
