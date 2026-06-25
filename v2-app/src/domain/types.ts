@@ -58,6 +58,7 @@ export interface MaterialSignal {
 export interface OperationPlan {
   id: string
   targetType: 'account' | 'project' | 'promotion' | 'material'
+  targetId: string
   targetName: string
   action: string
   reason: string
@@ -74,4 +75,3 @@ export interface RoiRecommendation {
   priority: 'p0' | 'p1' | 'p2'
   operationPlan?: OperationPlan
 }
-

@@ -57,6 +57,7 @@ ipcMain.handle('runtime:getConfigStatus', () => ({
   hasOceanEngineAccessToken: Boolean(process.env.OCEANENGINE_ACCESS_TOKEN),
   hasOceanEngineRefreshToken: Boolean(process.env.OCEANENGINE_REFRESH_TOKEN),
   hasFeishuWebhook: Boolean(process.env.FEISHU_WEBHOOK_URL),
+  operationAllowlistedAccountIds: parseCsv(process.env.JULIANG_OPERATION_ALLOWLIST),
   executionMode: ['readonly', 'preview', 'live'].includes(executionMode) ? executionMode : 'readonly',
   notificationMode: ['preview', 'live'].includes(notificationMode) ? notificationMode : 'preview',
   source: 'electron-main',
@@ -89,3 +90,12 @@ app.on('window-all-closed', () => {
     app.quit()
   }
 })
+
+function parseCsv(value) {
+  if (!value) return []
+  return String(value)
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean)
+    .slice(0, 200)
+}

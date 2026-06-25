@@ -111,9 +111,19 @@ function App() {
   )
   const notificationDraft = buildMaterialSignalNotification(displaySignals[0] ?? fallbackMaterialSignals[0])
   const notificationQueue = buildNotificationQueue(displaySignals, ownerRoutes)
-  const operationQueue = useMemo(() => buildOperationQueue(recommendations), [recommendations])
+  const operationQueue = useMemo(
+    () =>
+      buildOperationQueue(recommendations, {
+        executionMode: runtimeConfig.executionMode,
+        allowlistedAccountIds: runtimeConfig.operationAllowlistedAccountIds,
+      }),
+    [recommendations, runtimeConfig.executionMode, runtimeConfig.operationAllowlistedAccountIds],
+  )
   const activeOperationPlan =
     operationQueue.plans.find((plan) => plan.id === selectedOperationId) ?? operationQueue.plans[0]
+  const activeOperationGate = activeOperationPlan
+    ? operationQueue.gates.find((gate) => gate.planId === activeOperationPlan.id)
+    : undefined
   const activeConfirmationKeyword = activeOperationPlan ? confirmationKeyword(activeOperationPlan) : ''
   const portfolioDiagnostics = evaluatePortfolioDiagnostics(displayAccounts, displaySignals)
   const ownerRoutingResults = resolveOwnerRoutes(displaySignals, ownerRoutes)
@@ -188,9 +198,9 @@ function App() {
     {
       id: 'operations',
       title: '操作安全中心',
-      description: '预算和状态操作先进入预览、确认、审计',
-      status: operationAuditSummary?.total ? 'ready' : 'setup',
-      evidence: `审计 ${operationAuditSummary?.total ?? 0} / 阻断 ${operationAuditSummary?.blocked ?? 0}`,
+      description: '预算和状态操作先过模式、白名单、确认词和审计',
+      status: operationQueue.liveCandidateCount ? 'ready' : 'setup',
+      evidence: `候选 ${operationQueue.liveCandidateCount} / 阻断 ${operationQueue.blockedLiveCount}`,
       href: '#operations',
       icon: <ShieldCheck size={18} />,
     },
@@ -667,6 +677,9 @@ function App() {
                       <span>{plan.targetName}</span>
                       <strong>{plan.action}</strong>
                       <em>{plan.risk}</em>
+                      <small className={`gate-chip ${operationQueue.gates.find((gate) => gate.planId === plan.id)?.status ?? 'blocked'}`}>
+                        {formatGateStatus(operationQueue.gates.find((gate) => gate.planId === plan.id)?.status)}
+                      </small>
                     </button>
                   ))}
                   {!operationQueue.plans.length ? (
@@ -682,6 +695,11 @@ function App() {
                     <div>
                       <span>建议动作</span>
                       <strong>{activeOperationPlan.action}</strong>
+                    </div>
+                    <div className={`operation-gate ${activeOperationGate?.status ?? 'blocked'}`}>
+                      <span>真实操作门禁</span>
+                      <strong>{formatGateStatus(activeOperationGate?.status)}</strong>
+                      <p>{activeOperationGate?.reason ?? '未生成门禁结果。'}</p>
                     </div>
                     <p>{activeOperationPlan.reason}</p>
                     <label>
@@ -701,14 +719,15 @@ function App() {
                       </button>
                     </div>
                     <small>
-                      真实执行保持关闭；这里只记录确认、阻断和预览审计，防止误操作账号预算或状态。
+                      确认预案只写入审计；真实执行还需要 live 模式、账号白名单、确认词、审计和后续执行器共同通过。
                     </small>
                   </div>
                 ) : null}
               </div>
               <p className="queue-note">
                 需要确认 {operationQueue.confirmationRequiredCount} 条；最近审计：
-                {operationAuditSummary?.lastLog?.status ?? 'idle'}。
+                {operationAuditSummary?.lastLog?.status ?? 'idle'}；live 候选：
+                {operationQueue.liveCandidateCount} 条。
               </p>
             </div>
           </div>
@@ -720,6 +739,8 @@ function App() {
           <span>飞书模式：{runtimeConfig.notificationMode}</span>
           <span>通知投递：{notificationDeliverySummary?.lastLog?.status ?? 'idle'} / sent {notificationDeliverySummary?.sent ?? 0}</span>
           <span>配置来源：{runtimeConfig.source}</span>
+          <span>执行模式：{runtimeConfig.executionMode}</span>
+          <span>操作白名单：{runtimeConfig.operationAllowlistedAccountIds.length} 个账号</span>
           <span>数据源：{oceanEngineDataSource}</span>
           <span>指标来源：{projectionSourceLabel}</span>
           <span>软件运行：{softwareRunSummary?.total ?? 0} 次 / 失败 {softwareRunSummary?.failed ?? 0}</span>
@@ -794,6 +815,12 @@ function formatModuleStatus(status: SoftwareModuleStatus): string {
   return labels[status]
 }
 
+function formatGateStatus(status?: string): string {
+  if (status === 'live_candidate') return 'live 候选'
+  if (status === 'preview_only') return '仅预览'
+  return '已阻断'
+}
+
 function formatSoftwareRunStatus(status: SoftwareRunStatus): string {
   const labels: Record<SoftwareRunStatus, string> = {
     idle: '待运行',
@@ -824,7 +851,10 @@ function buildSoftwareCenterRun(
   const finishedAt = new Date().toISOString()
   const diagnostics = result ? evaluatePortfolioDiagnostics(result.projection.accounts, result.projection.materialSignals) : null
   const recommendations = result ? result.projection.accounts.flatMap((account) => evaluateAccount(account)) : []
-  const operationQueue = buildOperationQueue(recommendations)
+  const operationQueue = buildOperationQueue(recommendations, {
+    executionMode: result?.config.executionMode ?? 'readonly',
+    allowlistedAccountIds: result?.config.operationAllowlistedAccountIds ?? [],
+  })
 
   return {
     id: `software-run-${startedAt}-${trigger}`,

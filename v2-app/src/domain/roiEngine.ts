@@ -73,6 +73,7 @@ export function evaluateAccount(
       operationPlan: {
         id: `${account.id}-budget-up`,
         targetType: 'account',
+        targetId: account.id,
         targetName: account.name,
         action: '预算上调 15%',
         reason: 'ROI 和转化样本量同时达标',
@@ -93,6 +94,7 @@ export function evaluateAccount(
       operationPlan: {
         id: `${account.id}-pause-low-roi`,
         targetType: 'account',
+        targetId: account.id,
         targetName: account.name,
         action: '暂停高成本单元',
         reason: '消耗已过样本线且 ROI 未达标',

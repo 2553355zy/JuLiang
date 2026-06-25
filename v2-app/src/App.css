@@ -832,6 +832,26 @@
   color: #b54708;
 }
 
+.gate-chip {
+  flex: 0 0 auto;
+  border-radius: 999px;
+  background: #fff7ed;
+  color: #b54708;
+  padding: 3px 7px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.gate-chip.live_candidate {
+  background: #ecfdf3;
+  color: #067647;
+}
+
+.gate-chip.preview_only {
+  background: #eef4ff;
+  color: #164eb8;
+}
+
 .operation-empty {
   border: 1px solid #eef2f7;
   border-radius: 8px;
@@ -852,6 +872,27 @@
   display: grid;
   gap: 3px;
   margin-bottom: 9px;
+}
+
+.operation-detail .operation-gate {
+  border: 1px solid #fed7aa;
+  border-radius: 8px;
+  background: #fff7ed;
+  padding: 10px;
+}
+
+.operation-detail .operation-gate.live_candidate {
+  border-color: #abefc6;
+  background: #f6fef9;
+}
+
+.operation-detail .operation-gate.preview_only {
+  border-color: #cfe0ff;
+  background: #f7fbff;
+}
+
+.operation-detail .operation-gate p {
+  margin: 2px 0 0;
 }
 
 .operation-detail span,

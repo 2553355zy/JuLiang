@@ -4,6 +4,7 @@ export interface RuntimeConfigStatus {
   hasOceanEngineAccessToken: boolean
   hasOceanEngineRefreshToken: boolean
   hasFeishuWebhook: boolean
+  operationAllowlistedAccountIds: string[]
   executionMode: 'readonly' | 'preview' | 'live'
   notificationMode: 'preview' | 'live'
   source: 'browser-fallback' | 'electron-main'
@@ -16,6 +17,7 @@ export function getBrowserRuntimeConfigStatus(): RuntimeConfigStatus {
     hasOceanEngineAccessToken: false,
     hasOceanEngineRefreshToken: false,
     hasFeishuWebhook: false,
+    operationAllowlistedAccountIds: [],
     executionMode: 'readonly',
     notificationMode: 'preview',
     source: 'browser-fallback',
