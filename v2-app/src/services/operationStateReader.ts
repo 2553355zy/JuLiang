@@ -9,7 +9,16 @@ export interface OceanEngineOperationStateClient {
   getAccountState: (accountId: string) => Promise<{
     budget?: number
     status?: OperationStateSnapshot['status']
+    source?: OperationStateSnapshot['source']
   }>
+}
+
+export function createElectronOperationStateClient(): OceanEngineOperationStateClient | null {
+  if (typeof window === 'undefined' || !window.juliang?.operationState) return null
+
+  return {
+    getAccountState: window.juliang.operationState.getAccountState,
+  }
 }
 
 export function createProjectionOperationStateReader(): OperationStateReader {
@@ -40,7 +49,7 @@ export function createOceanEngineOperationStateReader(
         capturedAt: new Date().toISOString(),
         budget: state.budget,
         status: state.status ?? 'unknown',
-        source: 'oceanengine',
+        source: state.source ?? 'oceanengine',
       }
     },
   }

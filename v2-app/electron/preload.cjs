@@ -17,4 +17,7 @@ contextBridge.exposeInMainWorld('juliang', {
     listLogs: () => ipcRenderer.invoke('operationAudit:listLogs'),
     getSummary: () => ipcRenderer.invoke('operationAudit:getSummary'),
   },
+  operationState: {
+    getAccountState: (accountId) => ipcRenderer.invoke('operationState:getAccountState', accountId),
+  },
 })
