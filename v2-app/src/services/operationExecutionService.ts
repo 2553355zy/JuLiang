@@ -1,6 +1,12 @@
 import type { OperationAuditLog, OperationAuditSummary } from '../domain/operationAudit'
-import { buildOperationIdempotencyKey, type LiveOperationResult } from '../domain/operationExecution'
+import {
+  buildLiveOperationAdapterRequest,
+  buildOperationIdempotencyKey,
+  inferLiveOperationType,
+  type LiveOperationResult,
+} from '../domain/operationExecution'
 import type { OperationPlan } from '../domain/types'
+import { createNoopOperationAdapter, type OperationAdapter } from './operationAdapter'
 import type { OperationAuditRepository } from './operationAuditRepository'
 import type { OperationLiveGate } from './operationPlanner'
 
@@ -17,6 +23,7 @@ export interface OperationExecutionService {
 
 export function createOperationExecutionService(
   auditRepository: OperationAuditRepository,
+  adapter: OperationAdapter = createNoopOperationAdapter(),
 ): OperationExecutionService {
   return {
     async previewPlans(plans) {
@@ -42,7 +49,7 @@ export function createOperationExecutionService(
       return auditRepository.getSummary()
     },
     async requestLiveExecution(plan, gate, confirmationText) {
-      const result = buildLiveExecutionResult(plan, gate, confirmationText)
+      const result = await buildLiveExecutionResult(plan, gate, confirmationText, adapter)
       await auditRepository.saveLogs([
         createLog(plan, result.status === 'executed' ? 'executed' : 'blocked', result.message),
       ])
@@ -66,47 +73,41 @@ function buildLiveExecutionResult(
   plan: OperationPlan,
   gate: OperationLiveGate | undefined,
   confirmationText: string,
-): LiveOperationResult {
+  adapter: OperationAdapter,
+): Promise<LiveOperationResult> {
   const idempotencyKey = buildOperationIdempotencyKey(plan)
   const checkedAt = new Date().toISOString()
 
   if (!gate || gate.status !== 'live_candidate') {
-    return {
+    return Promise.resolve({
       planId: plan.id,
       targetId: plan.targetId,
       targetName: plan.targetName,
       action: plan.action,
+      operationType: inferLiveOperationType(plan),
       status: 'blocked',
       idempotencyKey,
       message: gate?.reason ?? '真实操作门禁未生成，禁止执行。',
       checkedAt,
-    }
+    })
   }
 
   const expected = confirmationKeyword(plan)
   if (confirmationText.trim() !== expected) {
-    return {
+    return Promise.resolve({
       planId: plan.id,
       targetId: plan.targetId,
       targetName: plan.targetName,
       action: plan.action,
+      operationType: inferLiveOperationType(plan),
       status: 'rejected',
       idempotencyKey,
       message: `确认词不匹配，期望输入：${expected}`,
       checkedAt,
-    }
+    })
   }
 
-  return {
-    planId: plan.id,
-    targetId: plan.targetId,
-    targetName: plan.targetName,
-    action: plan.action,
-    status: 'not_implemented',
-    idempotencyKey,
-    message: '真实巨量操作执行器尚未接入；本次只完成门禁、确认词和幂等 key 检查。',
-    checkedAt,
-  }
+  return adapter.execute(buildLiveOperationAdapterRequest(plan))
 }
 
 function createLog(

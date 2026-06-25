@@ -741,6 +741,7 @@ function App() {
                     {liveOperationResult?.planId === activeOperationPlan.id ? (
                       <div className={`live-result ${liveOperationResult.status}`}>
                         <span>执行器结果：{formatLiveOperationStatus(liveOperationResult.status)}</span>
+                        <span>操作类型：{formatLiveOperationType(liveOperationResult.operationType)}</span>
                         <strong>{liveOperationResult.message}</strong>
                         <p>幂等键：{liveOperationResult.idempotencyKey}</p>
                       </div>
@@ -857,6 +858,18 @@ function formatLiveOperationStatus(status: LiveOperationResult['status']): strin
   }
 
   return labels[status]
+}
+
+function formatLiveOperationType(operationType: LiveOperationResult['operationType']): string {
+  const labels: Record<LiveOperationResult['operationType'], string> = {
+    adjust_budget: '预算调整',
+    pause: '暂停',
+    resume: '恢复',
+    close: '关闭',
+    unknown: '未知操作',
+  }
+
+  return labels[operationType]
 }
 
 function formatSoftwareRunStatus(status: SoftwareRunStatus): string {
