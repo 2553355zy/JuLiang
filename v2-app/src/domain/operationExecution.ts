@@ -2,6 +2,17 @@ import type { OperationPlan } from './types'
 
 export type LiveOperationStatus = 'blocked' | 'rejected' | 'not_implemented' | 'executed'
 export type LiveOperationType = 'adjust_budget' | 'pause' | 'resume' | 'close' | 'unknown'
+export type BudgetAdjustmentDirection = 'increase' | 'decrease'
+
+export type LiveOperationParams =
+  | {
+      operationType: 'adjust_budget'
+      direction: BudgetAdjustmentDirection
+      percent: number
+    }
+  | {
+      operationType: 'pause' | 'resume' | 'close' | 'unknown'
+    }
 
 export interface LiveOperationTarget {
   type: OperationPlan['targetType']
@@ -15,6 +26,7 @@ export interface LiveOperationAdapterRequest {
   planId: string
   rawAction: string
   reason: string
+  params: LiveOperationParams
   idempotencyKey: string
 }
 
@@ -49,6 +61,7 @@ export function buildLiveOperationAdapterRequest(plan: OperationPlan): LiveOpera
     planId: plan.id,
     rawAction: plan.action,
     reason: plan.reason,
+    params: inferLiveOperationParams(plan),
     idempotencyKey: buildOperationIdempotencyKey(plan),
   }
 }
@@ -59,4 +72,22 @@ export function inferLiveOperationType(plan: OperationPlan): LiveOperationType {
   if (plan.action.includes('恢复') || plan.action.includes('开启')) return 'resume'
   if (plan.action.includes('关闭')) return 'close'
   return 'unknown'
+}
+
+export function inferLiveOperationParams(plan: OperationPlan): LiveOperationParams {
+  const operationType = inferLiveOperationType(plan)
+
+  if (operationType !== 'adjust_budget') {
+    return { operationType }
+  }
+
+  const direction: BudgetAdjustmentDirection = plan.action.includes('下调') ? 'decrease' : 'increase'
+  const percentMatch = plan.action.match(/(\d+(?:\.\d+)?)\s*%/)
+  const percent = percentMatch ? Number(percentMatch[1]) : 0
+
+  return {
+    operationType,
+    direction,
+    percent,
+  }
 }
