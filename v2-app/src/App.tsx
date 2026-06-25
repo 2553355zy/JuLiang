@@ -95,6 +95,7 @@ function App() {
     useState<NotificationDeliverySummary | null>(null)
   const [softwareRunStatus, setSoftwareRunStatus] = useState<SoftwareRunStatus>('idle')
   const [softwareRunSummary, setSoftwareRunSummary] = useState<SoftwareCenterRunSummary | null>(null)
+  const [softwareRuns, setSoftwareRuns] = useState<SoftwareCenterRun[]>([])
 
   const displayAccounts = portfolioProjection.accounts
   const displaySignals = portfolioProjection.materialSignals
@@ -369,15 +370,24 @@ function App() {
 
       applyWorkspaceRefresh(result)
       await softwareCenterRepository.saveRun(buildSoftwareCenterRun(trigger, 'success', startedAt, result))
-      setSoftwareRunSummary(await softwareCenterRepository.getSummary())
+      await loadSoftwareRunHistory()
       setSoftwareRunStatus('success')
     } catch (error) {
       await softwareCenterRepository.saveRun(
         buildSoftwareCenterRun(trigger, 'failed', startedAt, undefined, error),
       )
-      setSoftwareRunSummary(await softwareCenterRepository.getSummary())
+      await loadSoftwareRunHistory()
       setSoftwareRunStatus('failed')
     }
+  }
+
+  async function loadSoftwareRunHistory() {
+    const [summary, runs] = await Promise.all([
+      softwareCenterRepository.getSummary(),
+      softwareCenterRepository.listRuns(),
+    ])
+    setSoftwareRunSummary(summary)
+    setSoftwareRuns(runs.slice(0, 5))
   }
 
   const authorizedAdvertisers = advertiserSummary?.advertisers ?? []
@@ -491,6 +501,26 @@ function App() {
                 </div>
               </a>
             ))}
+          </div>
+          <div className="software-run-list" aria-label="软件中心最近运行">
+            <div className="software-run-list-head">
+              <strong>最近运行</strong>
+              <span>{softwareRuns.length ? `${softwareRuns.length} 条` : '暂无记录'}</span>
+            </div>
+            {softwareRuns.length ? (
+              softwareRuns.map((run) => (
+                <div className={`software-run-row ${run.status}`} key={run.id}>
+                  <span>{formatRunTrigger(run.trigger)}</span>
+                  <strong>{run.status}</strong>
+                  <span>{formatDuration(run.durationMs)}</span>
+                  <span>账号 {run.counts.advertisers}</span>
+                  <span>报表 {run.counts.reportRows}</span>
+                  <span>诊断 {run.counts.diagnostics}</span>
+                </div>
+              ))
+            ) : (
+              <div className="software-run-empty">刷新全部后会生成运行记录。</div>
+            )}
           </div>
         </section>
 
@@ -698,6 +728,15 @@ function formatSoftwareRunStatus(status: SoftwareRunStatus): string {
   }
 
   return labels[status]
+}
+
+function formatRunTrigger(trigger: SoftwareCenterRunTrigger): string {
+  const labels: Record<SoftwareCenterRunTrigger, string> = {
+    startup: '启动',
+    manual: '手动',
+  }
+
+  return labels[trigger]
 }
 
 function buildSoftwareCenterRun(
