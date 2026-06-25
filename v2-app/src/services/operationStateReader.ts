@@ -25,7 +25,7 @@ export function createFallbackOperationStateReader(readers: OperationStateReader
   return {
     async readBeforeState(plan) {
       for (const reader of readers) {
-        const snapshot = await reader.readBeforeState(plan)
+        const snapshot = await safeReadState(reader, plan)
         if (snapshot.source !== 'not_configured' && snapshot.source !== 'unavailable') {
           return snapshot
         }
@@ -75,6 +75,14 @@ export function createUnavailableOperationStateReader(): OperationStateReader {
     async readBeforeState() {
       return buildUnavailableSnapshot()
     },
+  }
+}
+
+async function safeReadState(reader: OperationStateReader, plan: OperationPlan): Promise<OperationStateSnapshot> {
+  try {
+    return await reader.readBeforeState(plan)
+  } catch {
+    return buildUnavailableSnapshot()
   }
 }
 

@@ -50,6 +50,7 @@ function summarize(logs) {
     confirmed: logs.filter((log) => log.status === 'confirmed').length,
     blocked: logs.filter((log) => log.status === 'blocked').length,
     executed: logs.filter((log) => log.status === 'executed').length,
+    verificationFailed: logs.filter((log) => log.status === 'verification_failed').length,
     lastLog: logs[0],
   }
 }
@@ -72,7 +73,9 @@ function normalizeLogs(logs) {
 }
 
 function normalizeStatus(status) {
-  return ['previewed', 'confirmed', 'blocked', 'executed'].includes(status) ? status : 'blocked'
+  return ['previewed', 'confirmed', 'blocked', 'executed', 'verification_failed'].includes(status)
+    ? status
+    : 'blocked'
 }
 
 function normalizeRisk(risk) {

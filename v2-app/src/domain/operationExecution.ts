@@ -1,6 +1,6 @@
 import type { OperationPlan } from './types'
 
-export type LiveOperationStatus = 'blocked' | 'rejected' | 'not_implemented' | 'executed'
+export type LiveOperationStatus = 'blocked' | 'rejected' | 'not_implemented' | 'executed' | 'verification_failed'
 export type LiveOperationType = 'adjust_budget' | 'pause' | 'resume' | 'close' | 'unknown'
 export type BudgetAdjustmentDirection = 'increase' | 'decrease'
 
@@ -22,6 +22,13 @@ export interface OperationVerificationPlan {
   before: OperationStateSnapshot
   expectedChanges: OperationExpectedChange[]
   verifyFields: Array<OperationExpectedChange['field']>
+}
+
+export interface OperationPostVerification {
+  after: OperationStateSnapshot
+  passed: boolean
+  checkedFields: Array<OperationExpectedChange['field']>
+  failedReasons: string[]
 }
 
 export interface OceanEngineWriteDryRun {
@@ -69,9 +76,30 @@ export interface LiveOperationResult {
   status: LiveOperationStatus
   idempotencyKey: string
   verification: OperationVerificationPlan
+  postVerification?: OperationPostVerification
   dryRun?: OceanEngineWriteDryRun
   message: string
   checkedAt: string
+}
+
+export function buildOperationPostVerification(
+  plan: OperationVerificationPlan,
+  after: OperationStateSnapshot,
+): OperationPostVerification {
+  const failedReasons = plan.expectedChanges
+    .map((change) => verifyExpectedChange(change, after))
+    .filter((reason): reason is string => Boolean(reason))
+
+  if (after.source === 'unavailable' || after.source === 'not_configured') {
+    failedReasons.push(`Post-operation state is ${after.source}.`)
+  }
+
+  return {
+    after,
+    passed: failedReasons.length === 0,
+    checkedFields: plan.verifyFields,
+    failedReasons,
+  }
 }
 
 export function buildOperationIdempotencyKey(plan: OperationPlan): string {
@@ -196,6 +224,40 @@ function calculateNextBudget(
   if (currentBudget === undefined || !Number.isFinite(currentBudget)) return undefined
   const multiplier = direction === 'increase' ? 1 + percent / 100 : 1 - percent / 100
   return Math.round(currentBudget * multiplier)
+}
+
+function verifyExpectedChange(
+  change: OperationExpectedChange,
+  after: OperationStateSnapshot,
+): string | undefined {
+  const actual = readSnapshotField(after, change.field)
+  if (actual === undefined || actual === null) {
+    return `Missing post-operation ${change.field}.`
+  }
+
+  if (!matchesExpectedValue(actual, change.to)) {
+    return `Expected ${change.field} to be ${String(change.to)}, got ${String(actual)}.`
+  }
+
+  return undefined
+}
+
+function readSnapshotField(
+  snapshot: OperationStateSnapshot,
+  field: OperationExpectedChange['field'],
+): number | string | undefined {
+  if (field === 'budget') return snapshot.budget
+  if (field === 'status') return snapshot.status
+  return undefined
+}
+
+function matchesExpectedValue(actual: number | string, expected: number | string | undefined): boolean {
+  if (expected === undefined) return false
+  if (typeof actual === 'number' || typeof expected === 'number') {
+    return Number(actual) === Number(expected)
+  }
+
+  return String(actual) === String(expected)
 }
 
 function buildStatusVerificationPlan(

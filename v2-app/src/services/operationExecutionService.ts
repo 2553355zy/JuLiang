@@ -1,5 +1,6 @@
 import type { OperationAuditLog, OperationAuditSummary } from '../domain/operationAudit'
 import {
+  buildOperationPostVerification,
   buildOperationVerificationPlan,
   buildLiveOperationAdapterRequest,
   buildOperationIdempotencyKey,
@@ -55,12 +56,13 @@ export function createOperationExecutionService(
     async requestLiveExecution(plan, gate, confirmationText) {
       const beforeState = await stateReader.readBeforeState(plan)
       const result = await buildLiveExecutionResult(plan, gate, confirmationText, adapter, beforeState)
+      const verifiedResult = await attachPostVerification(plan, result, stateReader)
       await auditRepository.saveLogs([
-        createLog(plan, result.status === 'executed' ? 'executed' : 'blocked', result.message),
+        createLog(plan, toAuditStatus(verifiedResult.status), verifiedResult.message),
       ])
 
       return {
-        result,
+        result: verifiedResult,
         auditSummary: await auditRepository.getSummary(),
       }
     },
@@ -117,6 +119,38 @@ function buildLiveExecutionResult(
   }
 
   return adapter.execute(buildLiveOperationAdapterRequest(plan, beforeState))
+}
+
+async function attachPostVerification(
+  plan: OperationPlan,
+  result: LiveOperationResult,
+  stateReader: OperationStateReader,
+): Promise<LiveOperationResult> {
+  if (result.status !== 'executed') return result
+
+  const afterState = await stateReader.readBeforeState(plan)
+  const postVerification = buildOperationPostVerification(result.verification, afterState)
+
+  if (postVerification.passed) {
+    return {
+      ...result,
+      postVerification,
+      message: `${result.message} Post-operation verification passed.`,
+    }
+  }
+
+  return {
+    ...result,
+    status: 'verification_failed',
+    postVerification,
+    message: `${result.message} Post-operation verification failed: ${postVerification.failedReasons.join('; ')}`,
+  }
+}
+
+function toAuditStatus(status: LiveOperationResult['status']): OperationAuditLog['status'] {
+  if (status === 'executed') return 'executed'
+  if (status === 'verification_failed') return 'verification_failed'
+  return 'blocked'
 }
 
 function createLog(

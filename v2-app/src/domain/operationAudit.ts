@@ -1,6 +1,6 @@
 import type { OperationPlan } from './types'
 
-export type OperationAuditStatus = 'previewed' | 'confirmed' | 'blocked' | 'executed'
+export type OperationAuditStatus = 'previewed' | 'confirmed' | 'blocked' | 'executed' | 'verification_failed'
 
 export interface OperationAuditLog {
   id: string
@@ -19,6 +19,6 @@ export interface OperationAuditSummary {
   confirmed: number
   blocked: number
   executed: number
+  verificationFailed: number
   lastLog?: OperationAuditLog
 }
-

@@ -770,6 +770,17 @@ function App() {
                             <pre>{JSON.stringify(liveOperationResult.dryRun.requestBody, null, 2)}</pre>
                           </div>
                         ) : null}
+                        {liveOperationResult.postVerification ? (
+                          <div className="post-verification-block">
+                            <span>
+                              Post verification: {liveOperationResult.postVerification.passed ? 'passed' : 'failed'}
+                            </span>
+                            <p>{formatPostVerificationSnapshot(liveOperationResult)}</p>
+                            {liveOperationResult.postVerification.failedReasons.length ? (
+                              <pre>{liveOperationResult.postVerification.failedReasons.join('\n')}</pre>
+                            ) : null}
+                          </div>
+                        ) : null}
                         <p>验证字段：{liveOperationResult.verification.verifyFields.join(', ') || '无'}</p>
                         <p>幂等键：{liveOperationResult.idempotencyKey}</p>
                       </div>
@@ -808,7 +819,10 @@ function App() {
           <span>报表探针：{apiProbe.reportRows} 行 / 余额 {apiProbe.fundRows} 行</span>
           <span>本地事实：{reportSyncSummary?.storedFactCount ?? 0} 条</span>
           <span>最近同步：{reportSyncSummary?.lastRun?.status ?? 'idle'}</span>
-          <span>操作审计：{operationAuditSummary?.total ?? 0} 条 / 阻断 {operationAuditSummary?.blocked ?? 0}</span>
+          <span>
+            操作审计：{operationAuditSummary?.total ?? 0} 条 / 阻断 {operationAuditSummary?.blocked ?? 0} / 复核失败{' '}
+            {operationAuditSummary?.verificationFailed ?? 0}
+          </span>
           <span>扩量候选：{portfolioDiagnostics.scaleCandidateCount}</span>
           <span>素材信号：{portfolioDiagnostics.materialSignalCount}</span>
           <span>回传异常：{portfolioDiagnostics.trackingIssueCount}</span>
@@ -885,6 +899,7 @@ function formatLiveOperationStatus(status: LiveOperationResult['status']): strin
     rejected: '确认拒绝',
     not_implemented: '执行器未接入',
     executed: '已执行',
+    verification_failed: '复核失败',
   }
 
   return labels[status]
@@ -913,6 +928,13 @@ function formatOperationSnapshot(result: LiveOperationResult): string {
     .join('；')
 
   return `操作前快照：${before.source}${before.budget !== undefined ? ` / 预算 ${before.budget}` : ''}${before.status ? ` / 状态 ${before.status}` : ''}${changes ? `；期望 ${changes}` : ''}`
+}
+
+function formatPostVerificationSnapshot(result: LiveOperationResult): string {
+  const after = result.postVerification?.after
+  if (!after) return 'No post-operation snapshot.'
+
+  return `After: ${after.source}${after.budget !== undefined ? ` / budget ${after.budget}` : ''}${after.status ? ` / status ${after.status}` : ''}`
 }
 
 function formatSoftwareRunStatus(status: SoftwareRunStatus): string {

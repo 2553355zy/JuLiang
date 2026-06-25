@@ -61,6 +61,8 @@ Live POST remains unavailable until all of these are true:
 - endpoint and request body are reviewed against the official OceanEngine docs for the exact account type
 - post-operation verification is implemented for every changed field
 
+The execution service must read account state again after a successful write response and compare every expected changed field. If the API response succeeds but the post-operation state does not match the expected budget or status, the result status is `verification_failed` and the audit log must preserve that state for manual review.
+
 ## Consequences
 
 The UI can show the exact dry-run endpoint and body during real execution checks. This makes the next real integration auditable and keeps destructive or money-moving operations off until the endpoint and account type are confirmed. When the endpoint is confirmed later, the same Electron boundary can perform the POST without moving write logic into React UI code.

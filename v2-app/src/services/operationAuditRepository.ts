@@ -50,6 +50,7 @@ function summarize(logs: OperationAuditLog[]): OperationAuditSummary {
     confirmed: logs.filter((log) => log.status === 'confirmed').length,
     blocked: logs.filter((log) => log.status === 'blocked').length,
     executed: logs.filter((log) => log.status === 'executed').length,
+    verificationFailed: logs.filter((log) => log.status === 'verification_failed').length,
     lastLog: logs[0],
   }
 }
